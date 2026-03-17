@@ -1,9 +1,21 @@
+from dataclasses import dataclass
 import json
 from typing import List, Optional
-from labjack import ljm
+
+
+@dataclass
+class SersorData:
+    pass
+
 
 class Sensor:
-    def __init__(self, ain: str, sensor_type: str, differential: bool, negative_ain: Optional[str] = None):
+    def __init__(
+        self,
+        ain: str,
+        sensor_type: str,
+        differential: bool,
+        negative_ain: Optional[str] = None,
+    ):
         self.ain = ain  # e.g. "AIN48"
         self.sensor_type = sensor_type
         self.differential = differential
@@ -105,14 +117,15 @@ class Sensor:
         # ljm.eWriteName(handle, f"{self.ain}_RESOLUTION_INDEX", 8)
         # ljm.eWriteName(handle, f"{self.ain}_SETTLING_US", 10)
 
-
     def read_value(self, ljm, handle):
         value = ljm.eReadName(handle, self.ain)
         print(f"{self.ain}: {value:.6f} V")
         return value
 
 
-def load_sensors_from_json(path: Optional[str] = "labjack_channels.json") -> List[Sensor]:
+def load_sensors_from_json(
+    path: str = "labjack_channels.json",
+) -> List[Sensor]:
     try:
         with open(path, "r") as f:
             data = json.load(f)
@@ -132,7 +145,7 @@ def load_sensors_from_json(path: Optional[str] = "labjack_channels.json") -> Lis
                     ain=entry["AIN"],
                     sensor_type=entry["SensorType"],
                     differential=entry.get("Differential", False),
-                    negative_ain=entry.get("NegativeAIN")
+                    negative_ain=entry.get("NegativeAIN"),
                 )
             )
         except KeyError as e:

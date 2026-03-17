@@ -1,12 +1,14 @@
+"""
+Basic script for generating `labjack_channels.json`, which is used by the server
+to fetch/stream data from the specified channels
+"""
+
 import json
 import os
 
 # mapping bases for X3/X4/X5 (CB37 AIN0..13 -> actual AIN)
-BANK_BASE = {
-    "X3": 48,
-    "X4": 72,
-    "X5": 96
-}
+BANK_BASE = {"X3": 48, "X4": 72, "X5": 96}
+
 
 def load_channels():
     if not os.path.exists("labjack_channels.json"):
@@ -39,8 +41,10 @@ def load_channels():
             print_configured_channels(channels)
             return channels, used_pins
 
-        except (json.JSONDecodeError, TypeError):
-            print("Warning: Could not parse JSON file. Starting with an empty configuration.")
+        except json.JSONDecodeError, TypeError:
+            print(
+                "Warning: Could not parse JSON file. Starting with an empty configuration."
+            )
             return [], set()
 
 
@@ -55,11 +59,13 @@ def print_configured_channels(channels):
         if t == "AIN":
             ain = ch["AIN"]
             neg = ch.get("NegativeAIN", "—")
-            print(f"  {ain} - {neg} | {ch['SensorType']} | Differential: {ch['Differential']}")
+            print(
+                f"  {ain} - {neg} | {ch['SensorType']} | Differential: {ch['Differential']}"
+            )
         elif t == "FIO":
-            print(f"  {ch['FIO']} | FIO | Direction: {ch.get('Direction','—')}")
+            print(f"  {ch['FIO']} | FIO | Direction: {ch.get('Direction', '—')}")
         elif t == "DAC":
-            print(f"  {ch['DAC']} | DAC | Voltage: {ch.get('Voltage','—')}")
+            print(f"  {ch['DAC']} | DAC | Voltage: {ch.get('Voltage', '—')}")
     print("============================")
 
 
@@ -70,14 +76,20 @@ def remove_channel(channels, used_pins):
 
     print_configured_channels(channels)
     try:
-        label = input("\nEnter the channel label to remove (e.g. AIN94, FIO3, DAC0): ").strip()
+        label = input(
+            "\nEnter the channel label to remove (e.g. AIN94, FIO3, DAC0): "
+        ).strip()
     except ValueError:
         print("Invalid input.")
         return
 
     for ch in channels:
         # compare by label membership
-        if (ch.get("AIN") == label) or (ch.get("FIO") == label) or (ch.get("DAC") == label):
+        if (
+            (ch.get("AIN") == label)
+            or (ch.get("FIO") == label)
+            or (ch.get("DAC") == label)
+        ):
             channels.remove(ch)
             # remove used pins tracked
             if "AIN" in ch:
@@ -102,7 +114,11 @@ def Sensortype():
     print("  - LoadCell")
 
     while True:
-        s = input("Please choose from the available sensor types: ").strip().capitalize()
+        s = (
+            input("Please choose from the available sensor types: ")
+            .strip()
+            .capitalize()
+        )
         if s not in ("Voltage", "Thermocouple", "Pressure", "Loadcell"):
             print("Please choose one of the available sensors")
         else:
@@ -149,7 +165,10 @@ def ask_cb37_pin(bank):
                 print("AIN index out of range (0-13).")
                 continue
             if bank == "X2" and idx > 3:
-                print("On X2 we allow only AIN0-AIN3 for AIN configuration. Please choose another pin or bank.")
+                print(
+                    "On X2 we allow only AIN0-AIN3 for AIN configuration. "
+                    "Please choose another pin or bank."
+                )
                 return None
             return ("AIN", idx)
 
@@ -182,7 +201,7 @@ def map_cb37_to_actual_ain(bank, cb37_idx):
     For X3/X4/X5 use BANK_BASE.
     """
     if bank == "X2":
-        #only AIN0..AIN3 are allowed on X2
+        # only AIN0..AIN3 are allowed on X2
         if 0 <= cb37_idx <= 3:
             return cb37_idx
         return None
@@ -238,7 +257,7 @@ def add_channel_flow(channels, used_pins):
                         "SensorType": sensor,
                         "Differential": True,
                         "Bank": bank,
-                        "CB37_Index": idx
+                        "CB37_Index": idx,
                     }
                 else:
                     pos_label = f"AIN{mapped_ain}"
@@ -253,7 +272,7 @@ def add_channel_flow(channels, used_pins):
                         "SensorType": sensor,
                         "Differential": False,
                         "Bank": bank,
-                        "CB37_Index": idx
+                        "CB37_Index": idx,
                     }
 
             else:
@@ -278,7 +297,7 @@ def add_channel_flow(channels, used_pins):
                         "SensorType": sensor,
                         "Differential": True,
                         "Bank": bank,
-                        "CB37_Index": idx
+                        "CB37_Index": idx,
                     }
                 else:
                     pos_label = f"AIN{mapped_ain}"
@@ -293,7 +312,7 @@ def add_channel_flow(channels, used_pins):
                         "SensorType": sensor,
                         "Differential": False,
                         "Bank": bank,
-                        "CB37_Index": idx
+                        "CB37_Index": idx,
                     }
 
         elif pin_type == "FIO":
@@ -310,7 +329,7 @@ def add_channel_flow(channels, used_pins):
                 "FIO": fio_label,
                 "Direction": direction,
                 "Bank": bank,
-                "CB37_Index": idx
+                "CB37_Index": idx,
             }
 
         else:  # DAC
@@ -323,15 +342,17 @@ def add_channel_flow(channels, used_pins):
             except ValueError:
                 print("Invalid voltage entered.")
                 return
-            if value < 0: value = 0
-            if value > 5: value = 5
+            if value < 0:
+                value = 0
+            if value > 5:
+                value = 5
             used_pins.add(dac_label)
             channel_info = {
                 "Type": "DAC",
                 "DAC": dac_label,
                 "Voltage": value,
                 "Bank": bank,
-                "CB37_Index": idx
+                "CB37_Index": idx,
             }
 
     else:
@@ -349,11 +370,13 @@ def add_channel_flow(channels, used_pins):
             pos_label = f"AIN{idx}"
             diff = isDifferential()
             if diff:
-                # For non-mux, assume standard pairing even->odd only for 0/1 and 2/3? 
+                # For non-mux, assume standard pairing even->odd only for 0/1 and 2/3?
                 # We'll restrict to the simplest: only allow differential if paired exists within 0..15 and not used.
                 # Require user to enter the negative by choosing an AIN that is its correct pair (we won't invent pair rules).
                 try:
-                    neg_idx = int(input("Enter negative AIN index (0-15): ").strip())
+                    neg_idx = int(
+                        input("Enter negative AIN index (0-15): ").strip()
+                    )
                 except ValueError:
                     print("Invalid negative AIN.")
                     return
@@ -371,7 +394,7 @@ def add_channel_flow(channels, used_pins):
                     "SensorType": sensor,
                     "Differential": True,
                     "Bank": None,
-                    "CB37_Index": None
+                    "CB37_Index": None,
                 }
             else:
                 if pos_label in used_pins:
@@ -385,7 +408,7 @@ def add_channel_flow(channels, used_pins):
                     "SensorType": sensor,
                     "Differential": False,
                     "Bank": None,
-                    "CB37_Index": None
+                    "CB37_Index": None,
                 }
 
         elif pin_type == "FIO":
@@ -400,7 +423,7 @@ def add_channel_flow(channels, used_pins):
             channel_info = {
                 "Type": "FIO",
                 "FIO": fio_label,
-                "Direction": direction
+                "Direction": direction,
             }
         else:  # DAC
             dac_label = f"DAC{idx}"
@@ -412,14 +435,12 @@ def add_channel_flow(channels, used_pins):
             except ValueError:
                 print("Invalid voltage entered.")
                 return
-            if value < 0: value = 0
-            if value > 5: value = 5
+            if value < 0:
+                value = 0
+            if value > 5:
+                value = 5
             used_pins.add(dac_label)
-            channel_info = {
-                "Type": "DAC",
-                "DAC": dac_label,
-                "Voltage": value
-            }
+            channel_info = {"Type": "DAC", "DAC": dac_label, "Voltage": value}
 
     # if we get here, channel_info should be defined
     channels.append(channel_info)
@@ -470,7 +491,14 @@ def main():
     channels, used_pins = load_channels()
 
     if channels:
-        overwrite = input("\nDo you want to completely overwrite the existing configuration? (y/n): ").strip().lower()
+        overwrite = (
+            input(
+                "\nDo you want to completely overwrite the existing "
+                "configuration? (y/n): "
+            )
+            .strip()
+            .lower()
+        )
         if overwrite in ("y", "yes"):
             channels = []
             used_pins = set()
