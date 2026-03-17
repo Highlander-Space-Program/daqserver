@@ -6,6 +6,7 @@
 daqserver
 ├── scripts (You are here)
 └── server
+    ├── db
     ├── streaming
     └── web
         ├── static

@@ -2,10 +2,11 @@
 
 <!-- filetree start -->
 
-```
+```text
 daqserver
 ├── scripts
 └── server (You are here)
+    ├── db
     ├── streaming
     └── web
         ├── static
