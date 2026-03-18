@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Clementine Dashboard UI Mock</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="app-shell">
+        <aside class="sidebar">
+            <h1 class="sidebar-title">Dashboard</h1>
+
+            <button class="nav-btn active" data-page="dashboard">Tabs</button>
+            <button class="nav-btn" data-page="buttons">Buttons</button>
+            <button class="nav-btn" data-page="sensors">Sensors</button>
+            <button class="nav-btn" data-page="history">History</button>
+            <button class="nav-btn" data-page="grafana">Grafana</button>
+
+            <div class="sidebar-help">
+                <p><strong>Tabs:</strong> main dashboard page</p>
+                <p><strong>Buttons:</strong> future quick controls</p>
+                <p><strong>Sensors:</strong> view and add sensors</p>
+                <p><strong>History:</strong> restore previously created charts</p>
+                <p><strong>Grafana:</strong> future integration page</p>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <section id="page-dashboard" class="page active">
+                <div class="page-header">
+                    <h2>Dashboard</h2>
+                    <button id="open-chart-builder" class="primary-btn">+ Add Chart</button>
+                </div>
+
+                <div id="dashboard-empty" class="empty-state">
+                    <h3>No charts yet</h3>
+                    <p>Click “Add Chart” to create a fake time-series chart.</p>
+                </div>
+
+                <div id="dashboard-grid" class="chart-grid hidden"></div>
+            </section>
+
+            <section id="page-buttons" class="page">
+                <div class="page-header">
+                    <h2>Buttons</h2>
+                </div>
+                <div class="panel">
+                    <p>This page is reserved for future quick controls like pause chart, clear dashboard, export data, or chart actions.</p>
+                    <div class="button-row">
+                        <button class="secondary-btn">Pause All</button>
+                        <button class="secondary-btn">Clear Dashboard</button>
+                        <button class="secondary-btn">Export Mock Data</button>
+                    </div>
+                </div>
+            </section>
+
+            <section id="page-sensors" class="page">
+                <div class="page-header">
+                    <h2>Sensors</h2>
+                    <button id="show-add-sensor" class="primary-btn">Add sensor</button>
+                </div>
+
+                <div class="panel">
+                    <div id="sensor-list" class="sensor-list"></div>
+                </div>
+            </section>
+
+            <section id="page-history" class="page">
+                <div class="page-header">
+                    <h2>History</h2>
+                </div>
+
+                <div class="panel">
+                    <h3>Previously Created Charts</h3>
+                    <div id="history-chart-list" class="history-list"></div>
+                </div>
+
+                <div class="panel">
+                    <h3>Recently Deleted Charts</h3>
+                    <details class="deleted-dropdown" open>
+                        <summary>Open deleted chart list</summary>
+                        <div id="deleted-chart-list" class="deleted-chart-list"></div>
+                    </details>
+                </div>
+
+                <div class="panel">
+                    <h3>Action Log</h3>
+                    <div id="history-log-list" class="history-list"></div>
+                </div>
+            </section>
+
+            <section id="page-grafana" class="page">
+                <div class="page-header">
+                    <h2>Grafana</h2>
+                </div>
+                <div class="panel">
+                    <p>This is a placeholder page for future Grafana integration.</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- CHART BUILDER MODAL -->
+    <div id="chart-builder-modal" class="modal hidden">
+        <div class="modal-card large">
+            <div class="modal-header">
+                <div>
+                    <h2>Live Chart</h2>
+                    <h3>Time series</h3>
+                </div>
+                <button id="close-chart-builder" class="close-btn">×</button>
+            </div>
+
+            <div class="mode-switch">
+                <button id="basic-mode-btn" class="mode-btn active">Basic</button>
+                <button id="advanced-mode-btn" class="mode-btn">Advanced</button>
+            </div>
+
+            <!-- BASIC -->
+            <div id="basic-mode-panel" class="builder-panel">
+                <div id="basic-sensor-options" class="sensor-option-list"></div>
+                <div class="confirm-row">
+                    <button id="confirm-basic-chart" class="primary-btn">Confirm</button>
+                </div>
+            </div>
+
+            <!-- ADVANCED -->
+            <div id="advanced-mode-panel" class="builder-panel hidden">
+                <div class="builder-head">
+                    <h3>Input section</h3>
+                    <button id="open-add-sensor-from-advanced" class="secondary-btn">Add equation</button>
+                </div>
+
+                <div id="advanced-sensor-inputs" class="advanced-inputs"></div>
+
+                <h3>Equations</h3>
+                <div class="equations-box">
+                    <div id="equation-options" class="equation-list"></div>
+                    <button id="add-more-equation-btn" class="secondary-btn">Add more equation</button>
+                </div>
+
+                <div id="custom-equation-wrap" class="hidden">
+                    <textarea id="custom-equation-text" placeholder="function(a) { return a * 100 + 2; }"></textarea>
+                </div>
+
+                <div class="confirm-row">
+                    <button id="confirm-advanced-chart" class="primary-btn">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ADD SENSOR MODAL -->
+    <div id="add-sensor-modal" class="modal hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div>
+                    <h2>Add new sensor</h2>
+                </div>
+                <button id="close-add-sensor" class="close-btn">×</button>
+            </div>
+
+            <div class="builder-panel">
+                <input id="sensor-name-input" type="text" placeholder="Please input sensor name" />
+                <textarea id="sensor-description-input" placeholder="Please input description"></textarea>
+
+                <select id="sensor-type-input">
+                    <option value="Custom">Custom</option>
+                    <option value="LoadCell">LoadCell</option>
+                    <option value="Thermocouple">Thermocouple</option>
+                    <option value="Temperature">Temperature</option>
+                    <option value="Pressure">Pressure</option>
+                    <option value="Flow">Flow</option>
+                </select>
+
+                <select id="sensor-mux-input">
+                    <option value="x1">x1</option>
+                    <option value="x2">x2</option>
+                    <option value="x3">x3</option>
+                    <option value="x4">x4</option>
+                </select>
+
+                <div class="analog-pin-box">
+                    <div class="analog-pin-title">Analog input pins</div>
+                    <div id="analog-pin-list"></div>
+                    <button id="add-analog-pin-btn" class="secondary-btn">Add another analog input pin</button>
+                </div>
+
+                <div class="confirm-row">
+                    <button id="save-sensor-btn" class="primary-btn">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

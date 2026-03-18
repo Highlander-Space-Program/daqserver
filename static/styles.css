@@ -1,0 +1,354 @@
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: Arial, Helvetica, sans-serif;
+    background: #0f172a;
+    color: #e2e8f0;
+}
+
+.app-shell {
+    display: flex;
+    min-height: 100vh;
+}
+
+.sidebar {
+    width: 260px;
+    background: #111827;
+    border-right: 1px solid #1f2937;
+    padding: 24px;
+}
+
+.sidebar-title {
+    font-size: 28px;
+    margin-bottom: 24px;
+}
+
+.nav-btn {
+    width: 100%;
+    text-align: left;
+    margin-bottom: 10px;
+    padding: 12px 14px;
+    border: none;
+    border-radius: 14px;
+    background: #1f2937;
+    color: #e5e7eb;
+    cursor: pointer;
+    font-size: 15px;
+}
+
+.nav-btn.active {
+    background: #f97316;
+    color: white;
+}
+
+.sidebar-help {
+    margin-top: 28px;
+    font-size: 13px;
+    color: #94a3b8;
+    line-height: 1.5;
+}
+
+.main-content {
+    flex: 1;
+    padding: 28px;
+}
+
+.page {
+    display: none;
+}
+
+.page.active {
+    display: block;
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 22px;
+}
+
+.page-header h2,
+.panel h3 {
+    margin-top: 0;
+}
+
+.page-header h2 {
+    font-size: 34px;
+}
+
+.primary-btn,
+.secondary-btn,
+.close-btn,
+.mode-btn,
+.delete-chart-btn {
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+}
+
+.primary-btn {
+    background: #f97316;
+    color: white;
+    padding: 12px 18px;
+    font-size: 15px;
+}
+
+.secondary-btn {
+    background: #1f2937;
+    color: white;
+    padding: 12px 18px;
+}
+
+.panel {
+    background: #111827;
+    border: 1px solid #1f2937;
+    border-radius: 24px;
+    padding: 22px;
+    margin-bottom: 20px;
+}
+
+.empty-state {
+    border: 1px dashed #334155;
+    border-radius: 24px;
+    min-height: 420px;
+    display: grid;
+    place-items: center;
+    text-align: center;
+    color: #94a3b8;
+}
+
+.chart-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+    gap: 20px;
+}
+
+.chart-card {
+    background: #111827;
+    border: 1px solid #1f2937;
+    border-radius: 24px;
+    padding: 18px;
+}
+
+.chart-card-header,
+.row-between,
+.builder-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.chart-card h3 {
+    margin: 0 0 6px 0;
+}
+
+.chart-subtitle {
+    color: #94a3b8;
+    font-size: 14px;
+    margin-bottom: 14px;
+}
+
+.chart-wrapper {
+    height: 260px;
+}
+
+.delete-chart-btn {
+    background: #7f1d1d;
+    color: white;
+    padding: 8px 12px;
+    font-size: 13px;
+}
+
+.delete-chart-btn:hover {
+    background: #991b1b;
+}
+
+.hidden {
+    display: none !important;
+}
+
+.sensor-list,
+.history-list,
+.sensor-option-list,
+.deleted-chart-list,
+.equation-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.sensor-item,
+.history-item,
+.sensor-option {
+    background: #0f172a;
+    border: 1px solid #1f2937;
+    border-radius: 18px;
+    padding: 14px;
+}
+
+.sensor-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.builder-panel input,
+.builder-panel select,
+.builder-panel textarea {
+    width: 100%;
+    margin-bottom: 14px;
+    padding: 14px;
+    border-radius: 16px;
+    border: 1px solid #334155;
+    background: #0f172a;
+    color: #e2e8f0;
+    font-size: 15px;
+}
+
+.builder-panel textarea {
+    min-height: 100px;
+    resize: vertical;
+}
+
+.button-row {
+    margin-top: 18px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(2, 6, 23, 0.75);
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    z-index: 30;
+}
+
+.modal-card {
+    width: min(900px, 100%);
+    background: #111827;
+    border: 1px solid #334155;
+    border-radius: 28px;
+    padding: 24px;
+}
+
+.modal-card.large {
+    width: min(1050px, 100%);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.modal-header h2,
+.modal-header h3 {
+    margin: 0;
+}
+
+.modal-header h2 {
+    font-size: 34px;
+}
+
+.modal-header h3 {
+    font-size: 28px;
+}
+
+.close-btn {
+    width: 42px;
+    height: 42px;
+    background: #1f2937;
+    color: white;
+    font-size: 24px;
+}
+
+.mode-switch {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin: 24px 0;
+}
+
+.mode-btn {
+    padding: 10px 20px;
+    background: #1f2937;
+    color: white;
+}
+
+.mode-btn.active {
+    background: white;
+    color: #111827;
+}
+
+.builder-panel {
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 24px;
+    padding: 20px;
+}
+
+.confirm-row {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 12px;
+}
+
+.equations-box,
+.analog-pin-box {
+    margin-top: 14px;
+    padding: 14px;
+    background: #111827;
+    border-radius: 16px;
+    color: #cbd5e1;
+}
+
+.advanced-inputs,
+#analog-pin-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.advanced-row {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: 1fr 1fr;
+}
+
+.deleted-dropdown summary {
+    cursor: pointer;
+    font-weight: bold;
+}
+
+@media (max-width: 900px) {
+    .app-shell {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid #1f2937;
+    }
+
+    .advanced-row {
+        grid-template-columns: 1fr;
+    }
+
+    .page-header,
+    .chart-card-header,
+    .row-between,
+    .builder-head {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}
