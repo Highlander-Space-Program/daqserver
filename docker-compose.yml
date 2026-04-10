@@ -64,19 +64,33 @@ services:
     networks:
       - daq-net
 
-  mqtt-influx-bridge:  # custom service
-    build: ./mqtt_bridge
-    container_name: mqtt-influx-bridge
+  #mqtt-influx-bridge:  # custom service
+  #  build: ./mqtt_bridge
+  #  container_name: mqtt-influx-bridge
+  #  depends_on:
+  #    - mosquitto
+  #    - influxdb3-core
+  #  environment:
+  #    INFLUX_URL: http://influxdb3-core:8181
+  #    INFLUX_TOKEN: ${INFLUXDB3_TOKEN}  
+  #    INFLUX_DATABASE: mydb
+  #    MQTT_HOST: mosquitto
+  #    MQTT_PORT: 1883
+  #  restart: unless-stopped
+  #  networks:
+  #    - daq-net
+
+  server:
+    build: .
+    container_name: daq-server
+    ports:
+      - 8000:8000
     depends_on:
       - mosquitto
       - influxdb3-core
     environment:
-      INFLUX_URL: http://influxdb3-core:8181
-      INFLUX_TOKEN: ${INFLUXDB3_TOKEN}  
-      INFLUX_DATABASE: mydb
-      MQTT_HOST: mosquitto
-      MQTT_PORT: 1883
-    restart: unless-stopped
+      INFLUXDB_URL: http://influxdb3-core:8181
+      INFLUXDB_TOKEN: ${INFLUXDB3_TOKEN}
     networks:
       - daq-net
 
