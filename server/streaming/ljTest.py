@@ -133,9 +133,9 @@ class LabJackT7:
         except KeyboardInterrupt:
             print("Stream interrupted.")
         finally:
-            
-            ljm.eStreamStop(self.handle)
-            print("Stream stopped.")
+            pass
+            # ljm.eStreamStop(self.handle)
+            # print("Stream stopped.")
 
     # Unit conversion dispatch
     @staticmethod
