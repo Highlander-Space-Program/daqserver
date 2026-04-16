@@ -30,7 +30,7 @@ services:
       - "8888:80"  # Access via http://localhost:8888
     environment:
       INFLUXDB_URL: http://influxdb3-core:8181
-      INFLUXDB_TOKEN: ${INFLUXDB3_TOKEN}   # Make sure you export this env var before 'docker-compose up'
+      INFLUXDB_TOKEN: ${INFLUXDB_TOKEN}   # Make sure you export this env var before 'docker-compose up'
     restart: unless-stopped
     networks:
       - daq-net 
@@ -72,8 +72,8 @@ services:
   #    - influxdb3-core
   #  environment:
   #    INFLUX_URL: http://influxdb3-core:8181
-  #    INFLUX_TOKEN: ${INFLUXDB3_TOKEN}  
-  #    INFLUX_DATABASE: mydb
+  #    INFLUX_TOKEN: ${INFLUXDB_TOKEN}  
+  #    INFLUX_DATABASE: daqDB
   #    MQTT_HOST: mosquitto
   #    MQTT_PORT: 1883
   #  restart: unless-stopped
@@ -90,7 +90,7 @@ services:
       - influxdb3-core
     environment:
       INFLUXDB_URL: http://influxdb3-core:8181
-      INFLUXDB_TOKEN: ${INFLUXDB3_TOKEN}
+      INFLUXDB_TOKEN: ${INFLUXDB_TOKEN}
     networks:
       - daq-net
 
