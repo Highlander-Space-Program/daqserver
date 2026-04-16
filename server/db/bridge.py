@@ -5,117 +5,122 @@ import threading
 import paho.mqtt.client as mqtt
 from influxdb_client_3 import InfluxDBClient3, Point
 
-# ========== ENV CONFIG ==========
-INFLUX_URL = os.getenv("INFLUX_URL")
-INFLUX_TOKEN = os.getenv("INFLUX_TOKEN")
-INFLUX_DATABASE = os.getenv("INFLUX_DATABASE")
 
-MQTT_HOST = os.getenv("MQTT_HOST")
-MQTT_PORT = int(os.getenv("MQTT_PORT", 1883))
+class Bridge:
+    def __init__(self, url, token, database_name, host, port):
+        # ========== ENV CONFIG ==========
+        self.influx_url = url
+        self.influx_token = token
+        self.influx_database = database_name
+        
+        self.mqtt_host = host
+        self.mqtt_port = int(port)
+        
+        self.BATCH_SIZE = 50
+        self.FLUSH_INTERVAL = 5  # seconds
+        
+        # ========== CONNECT TO INFLUX ==========
+        self.client = InfluxDBClient3(
+            host=self.influx_url,
+            token=self.influx_token,
+            database=self.influx_database
+        )
+        
+        # ========== BATCH STORAGE ==========
+        self.batch = []
+        self.batch_lock = threading.Lock()
+        
+        # Keys that should always be tags
+        self.TAG_KEYS = {"device", "location", "site"}    
 
-BATCH_SIZE = 50
-FLUSH_INTERVAL = 5  # seconds
 
-# ========== CONNECT TO INFLUX ==========
-client = InfluxDBClient3(
-    host=INFLUX_URL,
-    token=INFLUX_TOKEN,
-    database=INFLUX_DATABASE
-)
-
-# ========== BATCH STORAGE ==========
-batch = []
-batch_lock = threading.Lock()
-
-# Keys that should always be tags
-TAG_KEYS = {"device", "location", "site"}
-
-# ========== SCHEMA HANDLER ==========
-def build_point_from_payload(payload):
-    measurement = payload.get("measurement", "labjack")
-
-    point = Point(measurement)
-
-    for key, value in payload.items():
-        if key == "measurement":
-            continue
-
-        if value is None:
-            continue
-
-        # Tag handling
-        if key in TAG_KEYS:
-            point.tag(key, str(value))
-            continue
-
-        # Automatic numeric detection
-        if isinstance(value, (int, float)):
-            point.field(key, value)
-
-        # Boolean
-        elif isinstance(value, bool):
-            point.field(key, value)
-
-        # String
-        elif isinstance(value, str):
-            # If small set of strings → often better as tag
-            if len(value) < 32:
-                point.tag(key, value)
-            else:
+    def start(self):
+        # ========== START FLUSH THREAD ==========
+        self.flush_thread = threading.Thread(target=self.flush_batch, daemon=True)
+        self.flush_thread.start()
+        
+        # ========== START MQTT ==========
+        self.mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+        self.mqtt_client.on_connect = self.on_connect
+        self.mqtt_client.on_message = self.on_message
+        
+        self.mqtt_client.connect(self.mqtt_host, self.mqtt_port, 60)
+        self.mqtt_client.loop_start()
+    
+    
+    # ========== SCHEMA HANDLER ==========
+    def build_point_from_payload(self, payload):
+        measurement = payload.get("measurement", "labjack")
+    
+        point = Point(measurement)
+    
+        for key, value in payload.items():
+            if key == "measurement":
+                continue
+    
+            if value is None:
+                continue
+    
+            # Tag handling
+            if key in self.TAG_KEYS:
+                point.tag(key, str(value))
+                continue
+    
+            # Automatic numeric detection
+            if isinstance(value, (int, float)):
                 point.field(key, value)
+    
+            # Boolean
+            elif isinstance(value, bool):
+                point.field(key, value)
+    
+            # String
+            elif isinstance(value, str):
+                # If small set of strings → often better as tag
+                if len(value) < 32:
+                    point.tag(key, value)
+                else:
+                    point.field(key, value)
+    
+            # Ignore complex types (arrays, dicts)
+            else:
+                continue
+    
+        return point
+    
+    # ========== FLUSH FUNCTION ==========
+    def flush_batch(self):
+        while True:
+            time.sleep(self.FLUSH_INTERVAL)
+    
+            with self.batch_lock:
+                if self.batch:
+                    try:
+                        self.client.write(self.batch)
+                        print(f"Flushed {len(self.batch)} points")
+                        self.batch = []
+                    except Exception as e:
+                        print("Flush error:", e)
+    
+    # ========== MQTT CALLBACKS ==========
+    def on_connect(self, client, userdata, flags, reason_code, properties):
+        print("Connected to MQTT", reason_code)
+        client.subscribe("labjack/#")
+    
+    def on_message(self, client_mqtt, userdata, msg):
+        try:
+            payload = json.loads(msg.payload.decode())
+            point = self.build_point_from_payload(payload)
+    
+            with self.batch_lock:
+                self.batch.append(point)
+    
+                if len(self.batch) >= self.BATCH_SIZE:
+                    self.client.write(self.batch)
+                    print(f"Wrote batch of {len(self.batch)}")
+                    self.batch = []
+    
+        except Exception as e:
+            print("Message error:", e)
 
-        # Ignore complex types (arrays, dicts)
-        else:
-            continue
-
-    return point
-
-# ========== FLUSH FUNCTION ==========
-def flush_batch():
-    global batch
-    while True:
-        time.sleep(FLUSH_INTERVAL)
-
-        with batch_lock:
-            if batch:
-                try:
-                    client.write(batch)
-                    print(f"Flushed {len(batch)} points")
-                    batch = []
-                except Exception as e:
-                    print("Flush error:", e)
-
-# ========== MQTT CALLBACKS ==========
-def on_connect(client, userdata, flags, reason_code, properties):
-    print("Connected to MQTT", reason_code)
-    client.subscribe("labjack/#")
-
-def on_message(client_mqtt, userdata, msg):
-    global batch
-
-    try:
-        payload = json.loads(msg.payload.decode())
-        point = build_point_from_payload(payload)
-
-        with batch_lock:
-            batch.append(point)
-
-            if len(batch) >= BATCH_SIZE:
-                client.write(batch)
-                print(f"Wrote batch of {len(batch)}")
-                batch = []
-
-    except Exception as e:
-        print("Message error:", e)
-
-# ========== START FLUSH THREAD ==========
-flush_thread = threading.Thread(target=flush_batch, daemon=True)
-flush_thread.start()
-
-# ========== START MQTT ==========
-mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-mqtt_client.on_connect = on_connect
-mqtt_client.on_message = on_message
-
-mqtt_client.connect(MQTT_HOST, MQTT_PORT, 60)
-mqtt_client.loop_forever()
+# vim: et:sw=4
