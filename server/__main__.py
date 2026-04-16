@@ -14,7 +14,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
 
 async def start():
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     config = uvicorn.Config(app, host="0.0.0.0", port=8000)
     server = uvicorn.Server(config)
     await server.serve()
