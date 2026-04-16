@@ -6,6 +6,7 @@ from labjack import ljm
 
 from server.streaming.sensors import Sensor
 
+import time #temporary
 
 # Conversion helpers
 def thermocouple_voltage_to_celsius(
@@ -26,7 +27,7 @@ def pressure_voltage_to_psi(voltage: float) -> float:
 
 # LabJack T7 wrapper
 class LabJackT7:
-    SCAN_RATE_HZ: int = 100
+    SCAN_RATE_HZ: int = 50
     SCANS_PER_READ: int = 1
 
     def __init__(self) -> None:
