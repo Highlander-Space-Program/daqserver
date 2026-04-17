@@ -1,12 +1,14 @@
 import asyncio
 from datetime import datetime
 from typing import Any
+from collections import deque
 
 from labjack import ljm
 
 from server.streaming.sensors import Sensor
 
 import time #temporary
+import numpy as np
 
 # Conversion helpers
 def thermocouple_voltage_to_celsius(
@@ -24,6 +26,17 @@ def loadcell_voltage_to_lbs(voltage: float) -> float:
 def pressure_voltage_to_psi(voltage: float) -> float:
     return ((voltage - 0.5) / 4.0) * 1600
 
+def loadcell_voltage_to_lbs_formula(
+    voltage: float,
+    rated_capacity_kg: float,
+    rated_output_mv_per_v: float,  # use 2.0 for 300kg cell, 40.58 for QL-TSC (202.9/5V)
+    excitation_voltage: float,
+    zero_offset_v: float = 0.0,
+) -> float:
+    full_scale_voltage = (rated_output_mv_per_v / 1000.0) * excitation_voltage
+    net_voltage = voltage - zero_offset_v
+    load_kg = (net_voltage / full_scale_voltage) * rated_capacity_kg
+    return load_kg * 2.20462
 
 # LabJack T7 wrapper
 class LabJackT7:
@@ -32,6 +45,8 @@ class LabJackT7:
 
     def __init__(self) -> None:
         self.handle = None
+        self._buffers: dict[str, deque] = {}
+        self._tare: dict[str, float] = {}
 
     # Connection
 
@@ -49,6 +64,46 @@ class LabJackT7:
             ljm.close(self.handle)
             self.handle = None
             print("LabJack closed.")
+
+    SMOOTHING_WINDOWS = {   # rename to plural + make it a dict
+    "thermocouple": 10,
+    "tc": 10,
+    "load_cell": 50,
+    "loadcell": 50,
+    "lc": 50,
+    "pressure": 20,
+    "pt": 20,
+    }
+
+    # Rolling Average
+    def _smooth(self, ain: str, value: float, sensor_type: str = "") -> float:
+        window = self.SMOOTHING_WINDOWS.get(sensor_type.lower(), 25)
+        if ain not in self._buffers:
+            self._buffers[ain] = deque([value] * window, maxlen=window)  # create buffer first
+        self._buffers[ain].append(value)
+        avg = sum(self._buffers[ain]) / len(self._buffers[ain])
+        return avg - self._tare.get(ain, 0.0)
+
+    #Tare 
+
+    def tare(self, sensor_type_by_ain: dict[str,str], ain: str = None) -> None:
+        """
+        Tare a specific channel or all channels if ain is None.
+        Call this when no load is applied.
+        """
+        if ain:
+            # Get current average value from buffer as the tare offset
+            if ain in self._buffers:
+                self._tare[ain] = sum(self._buffers[ain]) / len(self._buffers[ain])
+                print(f"Tared {ain}: offset = {self._tare[ain]:.4f}")
+        else:
+            # Tare all channels at once
+            for ch, buf in self._buffers.items():
+                sensor_type = sensor_type_by_ain.get(ch, "").lower()
+                if sensor_type == "loadcell":
+                    self._tare[ch] = sum(buf) / len(buf)
+                    print(f"Tared {ch}: offset = {self._tare[ch]:.4f}") 
+                
 
     # Stream setup
     def _build_scan_list(self, sensors: list[Sensor]):
@@ -95,6 +150,18 @@ class LabJackT7:
 
         self._start_stream(scan_list, num_channels)
 
+        # Warm up
+        for _ in range(50):
+            data, _, _ = ljm.eStreamRead(self.handle)
+            for ch_idx, ain in enumerate(channel_names):
+                raw_voltage = data[ch_idx]
+                sensor_type = sensor_type_by_ain[ain]
+                value = self._convert(raw_voltage, sensor_type)
+                self._smooth(ain, value, sensor_type)
+
+        self.tare(sensor_type_by_ain)  # called once here, never again unless user requests it
+        print("Tared.")
+
         print("Streaming - press Ctrl+C to stop.")
         try:
             while True:
@@ -110,6 +177,7 @@ class LabJackT7:
                         raw_voltage = data[base + ch_idx]
                         sensor_type = sensor_type_by_ain.get(ain, "")
                         value = self._convert(raw_voltage, sensor_type)
+                        value = self._smooth(ain, value, sensor_type)
                         packet["channels"][ain] = {
                             "sensor_type": sensor_type,
                             "voltage": raw_voltage,
@@ -144,7 +212,7 @@ class LabJackT7:
         if sensor_type in ("thermocouple", "tc"):
             return thermocouple_voltage_to_celsius(voltage)
         if sensor_type in ("load_cell", "loadcell", "lc"):
-            return loadcell_voltage_to_lbs(voltage)
+            return loadcell_voltage_to_lbs_formula(voltage, 500, 2, 5)
         if sensor_type in ("pressure", "pt"):
             return pressure_voltage_to_psi(voltage)
         return voltage  # raw voltage fallback

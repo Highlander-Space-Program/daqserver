@@ -9,6 +9,7 @@ dependencies = [
     "labjack-ljm>=1.23.0",
     "rich>=14.3.3",
     "websockets>=16.0",
+    "numpy>=1.26.0",
 ]
 
 [tool.uv]
