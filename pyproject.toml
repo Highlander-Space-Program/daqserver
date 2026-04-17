@@ -9,6 +9,7 @@ dependencies = [
     "influxdb3-python>=0.18.0",
     "labjack-ljm>=1.23.0",
     "paho-mqtt>=2.1.0",
+    "python-dotenv>=1.2.2",
     "requests>=2.33.1",
     "rich>=14.3.3",
     "websockets>=16.0",
