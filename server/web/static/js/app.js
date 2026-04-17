@@ -44,7 +44,6 @@ const saveSensorBtn = document.getElementById("save-sensor-btn");
 
 const sensorNameInput = document.getElementById("sensor-name-input");
 const sensorDescriptionInput = document.getElementById("sensor-description-input");
-const configuredSourceInput = document.getElementById("configured-source-input");
 const basicSensorModeBtn = document.getElementById("basic-sensor-mode-btn");
 const advancedSensorModeBtn = document.getElementById("advanced-sensor-mode-btn");
 const basicSensorPanel = document.getElementById("basic-sensor-panel");
@@ -453,19 +452,16 @@ function setBuilderMode(mode) {
 }
 
 async function createSensorFromForm() {
-    const source = (backendConfig.configured_sources || []).find(
-        item => item.stream_key === configuredSourceInput.value
-    );
     const payload = {
-        name: sensorNameInput.value.trim() || source?.name || "",
+        name: sensorNameInput.value.trim(),
         description: sensorDescriptionInput.value.trim(),
-        type: source?.type || "Custom",
-        unit: source?.unit || "units",
+        type: "Custom",
+        unit: "units",
         port: sensorPortInput.value,
-        stream_key: configuredSourceInput.value
+        stream_key: ""
     };
 
-    if (!payload.name || !payload.stream_key) return;
+    if (!payload.name) return;
 
     const res = await fetch("/api/sensors", {
         method: "POST",
