@@ -10,6 +10,12 @@ The main DAQ server repo.
 4. Get into the source code `cd daqserver`
 5. Run the project `uv run server`
 
+## Running this project with MQTT
+1. Same steps as 1-4
+5. Create a .env file `cp .env.example .env`
+6. Spin up the mqtt broker `docker compose up -d mosquitto`
+7. Run the project `uv run server`
+
 You don't need to download any Python for this, `uv` will download the right
 version and install all of the packages for you.
 
