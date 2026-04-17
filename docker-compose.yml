@@ -83,14 +83,13 @@ services:
   server:
     build: .
     container_name: daq-server
+    env_file:
+      - .env
     ports:
       - 8000:8000
     depends_on:
       - mosquitto
       - influxdb3-core
-    environment:
-      INFLUXDB_URL: http://influxdb3-core:8181
-      INFLUXDB_TOKEN: ${INFLUXDB_TOKEN}
     networks:
       - daq-net
 
