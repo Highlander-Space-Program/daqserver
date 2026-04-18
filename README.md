@@ -12,10 +12,16 @@ The main DAQ server repo.
 
 ## Running this project with MQTT
 1. Same steps as 1-4
+<<<<<<< HEAD
 5. Download [`Docker Desktop`](https://docs.docker.com/compose/install/#docker-desktop-recommended) to your computer
 6. Create a .env file `cp .env.example .env`
 7. Spin up the mqtt broker `docker compose up -d mosquitto`
 8. Run the project `uv run server`
+=======
+5. Create a .env file `cp .env.example .env`
+6. Spin up the mqtt broker `docker compose up -d mosquitto`
+7. If need to check the logs, run `docker compose logs -f mosquitto`
+>>>>>>> f4df6b7 (modified directions a bit)
 
 You don't need to download any Python for this, `uv` will download the right
 version and install all of the packages for you.
