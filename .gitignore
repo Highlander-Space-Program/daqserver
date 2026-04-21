@@ -1,6 +1,7 @@
 __pycache__/
 
 .env
+.env.docker
 .venv/
 .mypy_cache/
 .pytest_cache/
