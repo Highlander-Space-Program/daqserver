@@ -1,0 +1,104 @@
+# This Docker Compose file sets up:
+# - InfluxDB 3 (time-series database)
+# - InfluxDB UI (web interface)
+# - Grafana (dashboard/visualization)
+# - Mosquitto (MQTT broker)
+# - MQTT → InfluxDB bridge (custom service)
+#
+# Start with: docker compose up -d
+# Then access:
+# - InfluxDB UI: http://localhost:8888
+# - Grafana:   http://localhost:3000
+
+services:
+  influxdb3-core:
+    image: influxdb:3-core
+    container_name: influxdb3-core
+    ports:
+      - "8181:8181"   # default InfluxDB 3 HTTP API port
+    volumes:		
+      - influxdb3_data:/var/lib/influxdb3
+    command: influxdb3 serve --node-id mynode --object-store file --data-dir /var/lib/influxdb3
+    restart: unless-stopped
+    networks:
+      - daq-net
+
+  influxdb3-ui:
+    image: influxdata/influxdb3-ui:latest
+    container_name: influxdb3-ui
+    ports:
+      - "8888:80"  # Access via http://localhost:8888
+    environment:
+      INFLUXDB_URL: http://influxdb3-core:8181
+      INFLUXDB_TOKEN: ${INFLUXDB_TOKEN}   # Make sure you export this env var before 'docker-compose up'
+    restart: unless-stopped
+    networks:
+      - daq-net 
+
+  grafana:
+    image: grafana/grafana-oss:latest
+    container_name: grafana
+    ports:
+      - "3000:3000" 
+    volumes:
+      - grafana-storage:/var/lib/grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    depends_on:
+      - influxdb3-core
+    restart: unless-stopped
+    networks:
+      - daq-net
+
+  mosquitto:
+    image: eclipse-mosquitto:latest
+    container_name: mosquitto
+    ports:
+      - "1883:1883"  # MQTT
+      - "9001:9001"  # WebSocket (optional)
+    volumes:
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
+    restart: unless-stopped
+    networks:
+      - daq-net
+
+  #mqtt-influx-bridge:  # custom service
+  #  build: ./mqtt_bridge
+  #  container_name: mqtt-influx-bridge
+  #  depends_on:
+  #    - mosquitto
+  #    - influxdb3-core
+  #  environment:
+  #    INFLUX_URL: http://influxdb3-core:8181
+  #    INFLUX_TOKEN: ${INFLUXDB_TOKEN}  
+  #    INFLUX_DATABASE: daqDB
+  #    MQTT_HOST: mosquitto
+  #    MQTT_PORT: 1883
+  #  restart: unless-stopped
+  #  networks:
+  #    - daq-net
+
+  server:
+    build: .
+    container_name: daq-server
+    env_file:
+      - .env
+    ports:
+      - 8000:8000
+    depends_on:
+      - mosquitto
+      - influxdb3-core
+    networks:
+      - daq-net
+
+volumes:
+  influxdb3_data:  
+  grafana-storage:  
+  mosquitto_data: 
+  mosquitto_log:  
+
+networks:
+  daq-net:
+    driver: bridge

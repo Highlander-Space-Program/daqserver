@@ -1,11 +1,8 @@
 __pycache__/
 
-.env
-.env.docker
 .venv/
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/
-*.swp
 
 daqserver.egg-info/
