@@ -84,6 +84,7 @@ class Sensor:
 
 def load_sensors_from_json(
     path: str = "labjack_channels.json",
+    board: str | None = None,
 ) -> List[Sensor]:
     try:
         with open(path, "r") as f:
@@ -99,6 +100,10 @@ def load_sensors_from_json(
     sensors = []
     for entry in data:
         try:
+
+            if board and entry.get("Board") != board:
+                continue
+
             sensors.append(
                 Sensor(
                     ain=entry["AIN"],
