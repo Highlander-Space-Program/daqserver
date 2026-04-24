@@ -1,27 +1,135 @@
-"""
-This module defines `app` and database for the frontend
-
-The database for the frontend is going to save the charts and equations
-"""
-
 from typing import Any
+from uuid import uuid4
+
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.responses import HTMLResponse
+from pydantic import BaseModel
 
 from server.web.connection import ConnectionManager, ErrorMessage
 
 app = FastAPI()
 manager = ConnectionManager()
+
 app.mount("/static", StaticFiles(directory="./server/web/static"), name="static")
 templates = Jinja2Templates(directory="./server/web/templates")
 
+PORT_OPTIONS = [f"PT-{i}" for i in range(1, 9)] + [f"LC-{i}" for i in range(1, 9)]
 
-# Serve the main dashboard page
+equations: dict[str, dict[str, Any]] = {}
+sensors: dict[str, dict[str, Any]] = {}
+graphs: dict[str, dict[str, Any]] = {}
+
+
+class EquationPayload(BaseModel):
+    name: str
+    expression: str
+
+
+class SensorPayload(BaseModel):
+    name: str
+    port: str
+    equation_id: str | None = None
+
+
+class GraphPayload(BaseModel):
+    name: str
+    sensor_id: str
+
+
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
+
+
+@app.get("/controls", response_class=HTMLResponse)
+async def controls_page(request: Request):
+    return templates.TemplateResponse("controls.html", {"request": request})
+
+
+@app.get("/cameras", response_class=HTMLResponse)
+async def cameras_page(request: Request):
+    return templates.TemplateResponse("cameras.html", {"request": request})
+
+
+@app.get("/api/config")
+def api_config():
+    return {
+        "ports": PORT_OPTIONS,
+        "equations": list(equations.values()),
+        "sensors": list(sensors.values()),
+        "graphs": list(graphs.values()),
+        "read_rate_hz": "--",
+        "active_graphs": len(graphs),
+    }
+
+
+@app.post("/api/equations")
+def add_equation(payload: EquationPayload):
+    eq_id = str(uuid4())
+    equation = {
+        "id": eq_id,
+        "name": payload.name,
+        "expression": payload.expression,
+    }
+    equations[eq_id] = equation
+    return equation
+
+
+@app.patch("/api/equations/{equation_id}")
+def edit_equation(equation_id: str, payload: EquationPayload):
+    if equation_id not in equations:
+        return {"error": "Equation not found"}
+
+    equations[equation_id]["name"] = payload.name
+    equations[equation_id]["expression"] = payload.expression
+    return equations[equation_id]
+
+
+@app.post("/api/sensors")
+def add_sensor(payload: SensorPayload):
+    sensor_id = str(uuid4())
+    sensor = {
+        "id": sensor_id,
+        "name": payload.name,
+        "port": payload.port,
+        "equation_id": payload.equation_id,
+    }
+    sensors[sensor_id] = sensor
+    return sensor
+
+
+@app.patch("/api/sensors/{sensor_id}")
+def edit_sensor(sensor_id: str, payload: SensorPayload):
+    if sensor_id not in sensors:
+        return {"error": "Sensor not found"}
+
+    sensors[sensor_id]["name"] = payload.name
+    sensors[sensor_id]["port"] = payload.port
+    sensors[sensor_id]["equation_id"] = payload.equation_id
+    return sensors[sensor_id]
+
+
+@app.post("/api/graphs")
+def add_graph(payload: GraphPayload):
+    graph_id = str(uuid4())
+    graph = {
+        "id": graph_id,
+        "name": payload.name,
+        "sensor_id": payload.sensor_id,
+    }
+    graphs[graph_id] = graph
+    return graph
+
+
+@app.get("/api/latest")
+def api_latest():
+    return {
+        "read_rate_hz": "--",
+        "active_graphs": len(graphs),
+        "values": {},
+    }
 
 
 @app.websocket("/ws")
@@ -43,10 +151,8 @@ async def websocket_endpoint(websocket: WebSocket):
                 )
                 return
 
-            # TODO: argument counts need to be checked
             if action == "subscribe":
                 manager.subscribe(websocket, *arguments)
-
             elif action == "unsubscribe":
                 manager.unsubscribe(websocket, *arguments)
 
