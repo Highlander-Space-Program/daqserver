@@ -1,0 +1,31 @@
+<aside class="sidebar">
+    <h1 class="sidebar-title">Clementine</h1>
+
+    <div class="page-boxes">
+        <button class="page-box active" id="open-daq-page">DAQ</button>
+        <button class="page-box" id="open-controls-page">Controls</button>
+        <button class="page-box" id="open-cameras-page">Cameras</button>
+    </div>
+
+    <details class="nav-dropdown" open>
+        <summary>DAQ Menu</summary>
+        <button class="nav-btn active" data-page="dashboard">Dashboard</button>
+        <button class="nav-btn" data-page="history">History</button>
+        <button class="nav-btn" data-page="grafana">Grafana</button>
+    </details>
+
+    <div class="left-scroll-panel">
+        <div class="left-list-title" id="left-list-title">Active Sensors</div>
+        <div id="left-scroll-list" class="left-scroll-list"></div>
+    </div>
+
+    <div class="bottom-tabs">
+        <button id="show-sensors-tab" class="bottom-tab active">Sensors</button>
+        <button id="show-equations-tab" class="bottom-tab">Equations</button>
+    </div>
+
+    <div class="side-actions">
+        <button id="open-sensor-modal" class="primary-btn">+ Add Sensor</button>
+        <button id="open-equation-modal" class="primary-btn">+ Add Equation</button>
+    </div>
+</aside>
