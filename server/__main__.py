@@ -6,7 +6,8 @@ from server.web.app import app
 import uvicorn
 from dotenv import load_dotenv
 from server.db.bridge import Bridge
-
+from server.pool import Datapool, Topic
+from server.db.pool_bridge import PoolBridge
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -30,11 +31,17 @@ def main():
     influx_database = os.getenv("INFLUXDB_DATABASE")
     mqtt_host = os.getenv("MQTT_HOST")
     mqtt_port = int(os.getenv("MQTT_PORT", 1883))
-    influx_exists = all([influx_url, influx_token, influx_database, mqtt_host])
 
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
+    influx_exists = all([influx_url, influx_token, influx_database, mqtt_host])
     if influx_exists:
        bridge = Bridge(influx_url, influx_token, influx_database, mqtt_host, mqtt_port)
        bridge.start()
+
+       pool_bridge = PoolBridge(datapool, influx_url, influx_token, influx_database)
+       pool_bridge.start()
 
     print(f"influx exists: {influx_exists}")
 
