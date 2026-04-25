@@ -1,6 +1,6 @@
 from typing import Any
 from uuid import uuid4
-import sqlite3
+import aiosqlite
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
@@ -40,28 +40,31 @@ class GraphPayload(BaseModel):
     sensor_id: str
 
 
-def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS equations (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            expression TEXT NOT NULL
-        )
+async def init_db():
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS equations (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                expression TEXT NOT NULL
+            )
         """)
-    
-    conn.commit()
-    conn.close()
 
-def get_equations_from_db():
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS sensors (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                port TEXT NOT NULL,
+                equation_id TEXT
+            )
+        """)
 
-    cursor.execute("SELECT id, name, expression FROM equations")
-    rows = cursor.fetchall()
+        await db.commit()
 
-    conn.close()
+async def get_equations_from_db():
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT id, name, expression FROM equations") as cursor:
+            rows = await cursor.fetchall()
 
     return [
         {
@@ -71,7 +74,25 @@ def get_equations_from_db():
         }
         for row in rows
     ]
-init_db()
+
+async def get_sensors_from_db():
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT id, name, port, equation_id FROM sensors") as cursor:
+            rows = await cursor.fetchall()
+
+    return [
+        {
+            "id": row[0],
+            "name": row[1],
+            "port": row[2],
+            "equation_id": row[3],
+        }
+        for row in rows
+    ]
+
+@app.on_event("startup")
+async def startup():
+    await init_db()
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
@@ -89,11 +110,11 @@ async def cameras_page(request: Request):
 
 
 @app.get("/api/config")
-def api_config():
+async def api_config():
     return {
         "ports": PORT_OPTIONS,
-        "equations": get_equations_from_db(),
-        "sensors": list(sensors.values()),
+        "equations": await get_equations_from_db(),
+        "sensors": await get_sensors_from_db(),
         "graphs": list(graphs.values()),
         "read_rate_hz": "--",
         "active_graphs": len(graphs),
@@ -101,48 +122,43 @@ def api_config():
 
 
 @app.post("/api/equations")
-def add_equation(payload: EquationPayload):
+async def add_equation(payload: EquationPayload):
     eq_id = str(uuid4())
-    equation = {
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            """
+            INSERT INTO equations (id, name, expression)
+            VALUES (?, ?, ?)
+            """,
+            (eq_id, payload.name, payload.expression),
+        )
+        await db.commit()
+
+    return {
         "id": eq_id,
         "name": payload.name,
         "expression": payload.expression,
     }
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO equations (id, name, expression)
-        VALUES (?, ?, ?)
-        """,
-        (eq_id, payload.name, payload.expression),)
-    conn.commit()
-    conn.close()
-    #sqlite.save this equation
-    return equation
 
 
 
 @app.patch("/api/equations/{equation_id}")
-def edit_equation(equation_id: str, payload: EquationPayload):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+async def edit_equation(equation_id: str, payload: EquationPayload):
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            """
+            UPDATE equations
+            SET name = ?, expression = ?
+            WHERE id = ?
+            """,
+            (payload.name, payload.expression, equation_id),
+        )
 
-    cursor.execute(
-        """
-        UPDATE equations
-        SET name = ?, expression = ?
-        WHERE id = ?
-        """,
-        (payload.name, payload.expression, equation_id),
-    )
+        await db.commit()
 
-    conn.commit()
-
-    if cursor.rowcount == 0:
-        conn.close()
-        return {"error": "Equation not found"}
-
-    conn.close()
+        if cursor.rowcount == 0:
+            return {"error": "Equation not found"}
 
     return {
         "id": equation_id,
@@ -154,27 +170,50 @@ def edit_equation(equation_id: str, payload: EquationPayload):
 
 
 @app.post("/api/sensors")
-def add_sensor(payload: SensorPayload):
+async def add_sensor(payload: SensorPayload):
     sensor_id = str(uuid4())
-    sensor = {
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            """
+            INSERT INTO sensors (id, name, port, equation_id)
+            VALUES (?, ?, ?, ?)
+            """,
+            (sensor_id, payload.name, payload.port, payload.equation_id),
+        )
+        await db.commit()
+
+    return {
         "id": sensor_id,
         "name": payload.name,
         "port": payload.port,
         "equation_id": payload.equation_id,
     }
-    sensors[sensor_id] = sensor
-    return sensor
 
 
 @app.patch("/api/sensors/{sensor_id}")
-def edit_sensor(sensor_id: str, payload: SensorPayload):
-    if sensor_id not in sensors:
-        return {"error": "Sensor not found"}
+async def edit_sensor(sensor_id: str, payload: SensorPayload):
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            """
+            UPDATE sensors
+            SET name = ?, port = ?, equation_id = ?
+            WHERE id = ?
+            """,
+            (payload.name, payload.port, payload.equation_id, sensor_id),
+        )
 
-    sensors[sensor_id]["name"] = payload.name
-    sensors[sensor_id]["port"] = payload.port
-    sensors[sensor_id]["equation_id"] = payload.equation_id
-    return sensors[sensor_id]
+        await db.commit()
+
+        if cursor.rowcount == 0:
+            return {"error": "Sensor not found"}
+
+    return {
+        "id": sensor_id,
+        "name": payload.name,
+        "port": payload.port,
+        "equation_id": payload.equation_id,
+    }
 
 
 @app.post("/api/graphs")
@@ -224,3 +263,51 @@ async def websocket_endpoint(websocket: WebSocket):
 
     except WebSocketDisconnect:
         manager.disconnect(websocket)
+
+@app.delete("/api/equations/{equation_id}")
+async def delete_equation(equation_id: str):
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            "DELETE FROM equations WHERE id = ?",
+            (equation_id,),
+        )
+
+        await db.execute(
+            """
+            UPDATE sensors
+            SET equation_id = NULL
+            WHERE equation_id = ?
+            """,
+            (equation_id,),
+        )
+
+        await db.commit()
+
+        if cursor.rowcount == 0:
+            return {"error": "Equation not found"}
+
+    return {"success": True, "id": equation_id}
+
+@app.delete("/api/sensors/{sensor_id}")
+async def delete_sensor(sensor_id: str):
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            "DELETE FROM sensors WHERE id = ?",
+            (sensor_id,),
+        )
+        await db.commit()
+
+        if cursor.rowcount == 0:
+            return {"error": "Sensor not found"}
+
+    # Also delete graphs connected to this sensor
+    graphs_to_delete = [
+        graph_id
+        for graph_id, graph in graphs.items()
+        if graph["sensor_id"] == sensor_id
+    ]
+
+    for graph_id in graphs_to_delete:
+        del graphs[graph_id]
+
+    return {"success": True, "id": sensor_id}

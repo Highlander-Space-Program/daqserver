@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 import json
 from typing import List, Optional
-from enum import Enum
 
 
 @dataclass
