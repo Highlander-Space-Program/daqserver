@@ -4,8 +4,21 @@ from typing import List, Optional
 
 
 @dataclass
+class ThermocoupleData:
+    value: float
+
+
+@dataclass
+class PressureTransducerData:
+    value: float
+
+
+LabjackData = ThermocoupleData | PressureTransducerData
+
+
+@dataclass
 class SersorData:
-    pass
+    data: LabjackData
 
 
 class Sensor:
