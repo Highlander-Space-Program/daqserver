@@ -1,5 +1,6 @@
 from typing import Any
 from uuid import uuid4
+import sqlite3
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
@@ -17,7 +18,8 @@ templates = Jinja2Templates(directory="./server/web/templates")
 
 PORT_OPTIONS = [f"PT-{i}" for i in range(1, 9)] + [f"LC-{i}" for i in range(1, 9)]
 
-equations: dict[str, dict[str, Any]] = {}
+DB_PATH = "daq_ui.db"
+
 sensors: dict[str, dict[str, Any]] = {}
 graphs: dict[str, dict[str, Any]] = {}
 
@@ -38,6 +40,39 @@ class GraphPayload(BaseModel):
     sensor_id: str
 
 
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS equations (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            expression TEXT NOT NULL
+        )
+        """)
+    
+    conn.commit()
+    conn.close()
+
+def get_equations_from_db():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT id, name, expression FROM equations")
+    rows = cursor.fetchall()
+
+    conn.close()
+
+    return [
+        {
+            "id": row[0],
+            "name": row[1],
+            "expression": row[2]
+        }
+        for row in rows
+    ]
+init_db()
+
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
@@ -57,7 +92,7 @@ async def cameras_page(request: Request):
 def api_config():
     return {
         "ports": PORT_OPTIONS,
-        "equations": list(equations.values()),
+        "equations": get_equations_from_db(),
         "sensors": list(sensors.values()),
         "graphs": list(graphs.values()),
         "read_rate_hz": "--",
@@ -73,18 +108,49 @@ def add_equation(payload: EquationPayload):
         "name": payload.name,
         "expression": payload.expression,
     }
-    equations[eq_id] = equation
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO equations (id, name, expression)
+        VALUES (?, ?, ?)
+        """,
+        (eq_id, payload.name, payload.expression),)
+    conn.commit()
+    conn.close()
+    #sqlite.save this equation
     return equation
+
 
 
 @app.patch("/api/equations/{equation_id}")
 def edit_equation(equation_id: str, payload: EquationPayload):
-    if equation_id not in equations:
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        UPDATE equations
+        SET name = ?, expression = ?
+        WHERE id = ?
+        """,
+        (payload.name, payload.expression, equation_id),
+    )
+
+    conn.commit()
+
+    if cursor.rowcount == 0:
+        conn.close()
         return {"error": "Equation not found"}
 
-    equations[equation_id]["name"] = payload.name
-    equations[equation_id]["expression"] = payload.expression
-    return equations[equation_id]
+    conn.close()
+
+    return {
+        "id": equation_id,
+        "name": payload.name,
+        "expression": payload.expression,
+    }
+
+
 
 
 @app.post("/api/sensors")

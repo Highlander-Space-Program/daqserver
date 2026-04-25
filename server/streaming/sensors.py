@@ -1,6 +1,24 @@
 from dataclasses import dataclass
 import json
 from typing import List, Optional
+from enum import Enum
+
+
+@dataclass
+class T7ID:
+    mux_number: int
+    ain: int
+
+@dataclass
+class T8ID:
+    mux_number: int
+    ain: int
+
+LabjackID = T7ID | T8ID
+
+@dataclass
+class InputId:
+    sensor_type: LabjackID
 
 
 @dataclass
