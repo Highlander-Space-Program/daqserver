@@ -9,3 +9,4 @@ __pycache__/
 *.swp
 
 daqserver.egg-info/
+daq_ui.db

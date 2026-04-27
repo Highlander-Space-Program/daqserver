@@ -76,19 +76,24 @@ function renderLeftPanel() {
 
             const div = document.createElement("div");
             div.className = "left-item";
+
             div.innerHTML = `
                 <div>
                     <strong>${sensor.name}</strong>
                     <small>${sensor.port} • ${eq ? eq.name : "No equation"}</small>
                 </div>
-                <button class="tiny-btn">Edit</button>
+                <div class="item-actions">
+                    <button class="tiny-btn edit-btn">Edit</button>
+                    <button class="tiny-btn delete-btn">Delete</button>
+                </div>
             `;
 
-            div.querySelector("button").onclick = () => openEditSensor(sensor);
+            div.querySelector(".edit-btn").onclick = () => openEditSensor(sensor);
+            div.querySelector(".delete-btn").onclick = () => deleteSensor(sensor.id);
+
             leftScrollList.appendChild(div);
         });
     }
-
     if (activeLeftTab === "equations") {
         leftListTitle.textContent = "Saved Equations";
 
@@ -105,15 +110,21 @@ function renderLeftPanel() {
 
             const div = document.createElement("div");
             div.className = "left-item";
+
             div.innerHTML = `
                 <div>
                     <strong>${eq.name}</strong>
                     <small>Used by: ${usedBy}</small>
                 </div>
-                <button class="tiny-btn">Edit</button>
+                <div class="item-actions">
+                    <button class="tiny-btn edit-btn">Edit</button>
+                    <button class="tiny-btn delete-btn">Delete</button>
+                </div>
             `;
 
-            div.querySelector("button").onclick = () => openEditEquation(eq);
+            div.querySelector(".edit-btn").onclick = () => openEditEquation(eq);
+            div.querySelector(".delete-btn").onclick = () => deleteEquation(eq.id);
+
             leftScrollList.appendChild(div);
         });
     }
