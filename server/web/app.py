@@ -8,15 +8,34 @@ from starlette.responses import HTMLResponse
 from pydantic import BaseModel
 
 from server.web.connection import ConnectionManager, ErrorMessage
-
-from server.web.connection import ConnectionManager, ErrorMessage
+from server.streaming.sensors import T7ID, InputId, TestID
 
 app = FastAPI()
 manager = ConnectionManager()
 app.mount("/static", StaticFiles(directory="./server/web/static"), name="static")
 templates = Jinja2Templates(directory="./server/web/templates")
 
-PORT_OPTIONS = [f"PT-{i}" for i in range(1, 9)] + [f"LC-{i}" for i in range(1, 9)]
+PORT_OPTIONS: dict[str, InputId] = {
+    "PT-1": T7ID(4, 10),
+    "PT-2": T7ID(4, 10),
+    "PT-3": T7ID(4, 10),
+    "PT-4": T7ID(4, 10),
+    "PT-5": T7ID(4, 10),
+    "PT-6": T7ID(4, 10),
+    "PT-7": T7ID(4, 10),
+    "PT-8": T7ID(4, 10),
+    "PT-9": T7ID(4, 10),
+    "TC-1": T7ID(4, 10),
+    "TC-2": T7ID(4, 10),
+    "TC-3": T7ID(4, 10),
+    "TC-4": T7ID(4, 10),
+    "TC-5": T7ID(4, 10),
+    "TC-6": T7ID(4, 10),
+    "TC-7": T7ID(4, 10),
+    "TC-8": T7ID(4, 10),
+    "TC-9": T7ID(4, 10),
+    "test": TestID(),
+}
 
 DB_PATH = "daq_ui.db"
 
