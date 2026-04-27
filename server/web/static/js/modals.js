@@ -41,8 +41,19 @@ function closeEquationModal() {
 }
 
 function openGraphModal() {
+    editingGraphId = null;
+    document.querySelector("#graph-modal h2").textContent = "Add Graph";
     document.getElementById("graph-name-input").value = "";
     renderGraphSensorOptions();
+    document.getElementById("graph-modal").classList.remove("hidden");
+}
+
+function openEditGraph(graph) {
+    editingGraphId = graph.id;
+    document.querySelector("#graph-modal h2").textContent = "Edit Graph";
+    document.getElementById("graph-name-input").value = graph.name;
+    renderGraphSensorOptions();
+    document.getElementById("graph-sensor-input").value = graph.sensor_id;
     document.getElementById("graph-modal").classList.remove("hidden");
 }
 

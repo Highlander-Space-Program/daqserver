@@ -133,7 +133,11 @@ function renderLeftPanel() {
 function renderGraphs() {
     dashboardGrid.innerHTML = "";
 
-    const totalPages = Math.max(1, Math.ceil(backendConfig.graphs.length / GRAPHS_PER_PAGE));
+    const totalPages = Math.max(
+        1,
+        Math.floor(backendConfig.graphs.length / GRAPHS_PER_PAGE) + 1
+    );
+
     if (currentGraphPage >= totalPages) currentGraphPage = totalPages - 1;
 
     const start = currentGraphPage * GRAPHS_PER_PAGE;
@@ -153,17 +157,32 @@ function renderGraphs() {
                     <div class="graph-title">${graph.name}</div>
                     <small>${sensor ? sensor.name : "Unknown sensor"}</small>
                 </div>
+
+                <div class="graph-actions">
+                    <button class="tiny-btn edit-graph-btn">Edit</button>
+                    <button class="tiny-btn tare-graph-btn">Tare</button>
+                    <button class="tiny-btn delete-graph-btn">Delete</button>
+                    <button class="tiny-btn zoom-graph-btn">Zoom</button>
+                </div>
             </div>
+
             <div class="chart-wrap">
                 <canvas id="${canvasId}"></canvas>
             </div>
         `;
 
+        panel.querySelector(".edit-graph-btn").onclick = () => openEditGraph(graph);
+        panel.querySelector(".tare-graph-btn").onclick = () => tareGraph(graph.id);
+        panel.querySelector(".delete-graph-btn").onclick = () => deleteGraph(graph.id);
+        panel.querySelector(".zoom-graph-btn").onclick = () => zoomGraph(graph);
+
         dashboardGrid.appendChild(panel);
         buildBlankChart(canvasId, graph.name);
     });
 
-    while (dashboardGrid.children.length < GRAPHS_PER_PAGE) {
+    const remaining = GRAPHS_PER_PAGE - pageGraphs.length;
+
+    for (let i = 0; i < remaining; i++) {
         const skeleton = document.createElement("button");
         skeleton.className = "graph-panel skeleton-graph";
         skeleton.innerHTML = `
@@ -176,4 +195,33 @@ function renderGraphs() {
 
     document.getElementById("graph-page-label").textContent =
         `Page ${currentGraphPage + 1} of ${totalPages}`;
+}
+
+function zoomGraph(graph) {
+    dashboardGrid.innerHTML = "";
+
+    const container = document.createElement("div");
+    container.style.width = "100%";
+    container.style.height = "80vh";
+
+    const canvasId = `zoom-chart-${graph.id}`;
+
+    container.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <h2>${graph.name} (Zoomed)</h2>
+            <button id="back-btn" class="secondary-btn">← Back</button>
+        </div>
+
+        <div style="height:100%;">
+            <canvas id="${canvasId}"></canvas>
+        </div>
+    `;
+
+    dashboardGrid.appendChild(container);
+
+    buildBlankChart(canvasId, graph.name);
+
+    document.getElementById("back-btn").onclick = () => {
+        renderGraphs();
+    };
 }

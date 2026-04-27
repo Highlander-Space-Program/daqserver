@@ -56,7 +56,11 @@ function wireEvents() {
     };
 
     document.getElementById("next-graph-page").onclick = () => {
-        const totalPages = Math.max(1, Math.ceil(backendConfig.graphs.length / GRAPHS_PER_PAGE));
+        const totalPages = Math.max(
+            1,
+            Math.floor(backendConfig.graphs.length / GRAPHS_PER_PAGE) + 1
+        );
+    
         if (currentGraphPage < totalPages - 1) {
             currentGraphPage++;
             renderGraphs();
@@ -116,9 +120,27 @@ async function saveGraph() {
 
     if (!payload.name || !payload.sensor_id) return;
 
-    await apiSend("/api/graphs", "POST", payload);
+    if (editingGraphId) {
+        await apiSend(`/api/graphs/${editingGraphId}`, "PATCH", payload);
+    } else {
+        await apiSend("/api/graphs", "POST", payload);
+    }
+
     closeGraphModal();
     await loadConfig();
+}
+
+async function deleteGraph(graphId) {
+    const confirmed = confirm("Delete this graph?");
+    if (!confirmed) return;
+
+    await apiDelete(`/api/graphs/${graphId}`);
+    await loadConfig();
+}
+
+async function tareGraph(graphId) {
+    await apiSend(`/api/graphs/${graphId}/tare`, "POST", {});
+    alert("Graph tare saved.");
 }
 
 async function deleteSensor(sensorId) {
