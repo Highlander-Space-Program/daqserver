@@ -1,6 +1,8 @@
 async function init() {
-    wireEvents();
-    await loadConfig();
+  wireEvents();
+  await loadConfig();
+  initWebSocket();
 }
 
 init();
+

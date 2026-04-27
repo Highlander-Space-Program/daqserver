@@ -1,6 +1,7 @@
 from typing import Any
 from uuid import uuid4
 import aiosqlite
+import asyncio
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -8,32 +9,22 @@ from starlette.responses import HTMLResponse
 from pydantic import BaseModel
 
 from server.web.connection import ConnectionManager, ErrorMessage
-from server.streaming.sensors import T7ID, InputId, TestID
+from server.streaming.sensors import T7ID, InputId, SensorData, TestID
+from server.pool import Datapool, Topic
 
 app = FastAPI()
 manager = ConnectionManager()
 app.mount("/static", StaticFiles(directory="./server/web/static"), name="static")
 templates = Jinja2Templates(directory="./server/web/templates")
+datapool = Datapool(asyncio.new_event_loop())
 
 PORT_OPTIONS: dict[str, InputId] = {
     "PT-1": T7ID(4, 10),
     "PT-2": T7ID(4, 10),
     "PT-3": T7ID(4, 10),
-    "PT-4": T7ID(4, 10),
-    "PT-5": T7ID(4, 10),
-    "PT-6": T7ID(4, 10),
-    "PT-7": T7ID(4, 10),
-    "PT-8": T7ID(4, 10),
-    "PT-9": T7ID(4, 10),
     "TC-1": T7ID(4, 10),
     "TC-2": T7ID(4, 10),
     "TC-3": T7ID(4, 10),
-    "TC-4": T7ID(4, 10),
-    "TC-5": T7ID(4, 10),
-    "TC-6": T7ID(4, 10),
-    "TC-7": T7ID(4, 10),
-    "TC-8": T7ID(4, 10),
-    "TC-9": T7ID(4, 10),
     "test": TestID(),
 }
 
@@ -77,6 +68,13 @@ async def init_db():
                 equation_id TEXT
             )
         """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS graphs (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                sensor_id TEXT NOT NULL
+            )
+        """)
 
         await db.commit()
 
@@ -109,9 +107,29 @@ async def get_sensors_from_db():
     ]
 
 
+async def get_graphs_from_db():
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT id, name, sensor_id FROM graphs") as cursor:
+            rows = await cursor.fetchall()
+    return [{"id": row[0], "name": row[1], "sensor_id": row[2]} for row in rows]
+
+
+async def callback(sensor_data: SensorData):
+    data = sensor_data.get_data()
+
+    topic = None
+    for destination, source in PORT_OPTIONS.items():
+        if source == data.source:
+            topic = destination
+
+    if topic is not None:
+        await manager.broadcast(topic, sensor_data)
+
+
 @app.on_event("startup")
 async def startup():
     await init_db()
+    datapool.subscribe(Topic.SENSORDATA, callback)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -131,13 +149,14 @@ async def cameras_page(request: Request):
 
 @app.get("/api/config")
 async def api_config():
+    graphs_list = await get_graphs_from_db()
     return {
-        "ports": PORT_OPTIONS,
+        "ports": list(PORT_OPTIONS.keys()),
         "equations": await get_equations_from_db(),
         "sensors": await get_sensors_from_db(),
-        "graphs": list(graphs.values()),
+        "graphs": graphs_list,
         "read_rate_hz": "--",
-        "active_graphs": len(graphs),
+        "active_graphs": len(graphs_list),
     }
 
 
@@ -234,15 +253,23 @@ async def edit_sensor(sensor_id: str, payload: SensorPayload):
 
 
 @app.post("/api/graphs")
-def add_graph(payload: GraphPayload):
+async def add_graph(payload: GraphPayload):
     graph_id = str(uuid4())
-    graph = {
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            """
+            INSERT INTO graphs (id, name, sensor_id)
+            VALUES (?, ?, ?)
+            """,
+            (graph_id, payload.name, payload.sensor_id),
+        )
+        await db.commit()
+
+    return {
         "id": graph_id,
         "name": payload.name,
         "sensor_id": payload.sensor_id,
     }
-    graphs[graph_id] = graph
-    return graph
 
 
 @app.get("/api/latest")
@@ -313,6 +340,11 @@ async def delete_sensor(sensor_id: str):
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute(
             "DELETE FROM sensors WHERE id = ?",
+            (sensor_id,),
+        )
+        # Delete connected graphs from DB
+        await db.execute(
+            "DELETE FROM graphs WHERE sensor_id = ?",
             (sensor_id,),
         )
         await db.commit()
