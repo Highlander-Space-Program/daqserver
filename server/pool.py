@@ -5,6 +5,8 @@ from typing import override
 import inspect
 from collections import defaultdict
 
+from server.streaming.sensors import SensorData
+
 
 class Topic(Enum):
     SENSORDATA = "SENSORDATA"
@@ -85,7 +87,7 @@ class Datapool:
 
         self.subscribers[topic.value].append(callback)
 
-    def publish(self, topic: Topic, data):
+    def publish(self, topic: Topic, data: SensorData):
         """
         Synchronously publishes data to a topic.
         Schedules the async subscribers to execute on the provided event loop.

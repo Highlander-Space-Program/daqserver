@@ -1,11 +1,106 @@
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from enum import Enum
 import json
-from typing import List, Optional
+from datetime import datetime
+from typing import List, Optional, Self, override
+
+
+class InputId(ABC):
+    @abstractmethod
+    def to_dict(self) -> dict:
+        raise NotImplementedError
+
+    @classmethod
+    @abstractmethod
+    def from_dict(cls, dictionary: dict) -> Self:
+        raise NotImplementedError
+
+
+class TestID(InputId):
+    @override
+    def to_dict(self) -> dict:
+        return {"test": "test"}
+
+    @classmethod
+    @override
+    def from_dict(cls, dictionary: dict) -> Self:
+        _ = dictionary
+        return cls()
 
 
 @dataclass
-class SersorData:
-    pass
+class T7ID(InputId):
+    mux_number: int
+    ain: int
+    sensor_type: str = "T7"
+
+    @override
+    def to_dict(self) -> dict:
+        return {
+            "mux_number": self.mux_number,
+            "ain": self.ain,
+            "type": self.sensor_type,
+        }
+
+    @classmethod
+    @override
+    def from_dict(cls, dictionary: dict) -> Self:
+        return cls(dictionary["mux_number"], dictionary["ain"])
+
+
+@dataclass
+class T8ID(InputId):
+    mux_number: int
+    ain: int
+    sensor_type: str = "T8"
+
+    @override
+    def to_dict(self) -> dict:
+        return {
+            "mux_number": self.mux_number,
+            "ain": self.ain,
+            "type": self.sensor_type,
+        }
+
+    @classmethod
+    @override
+    def from_dict(cls, dictionary: dict) -> Self:
+        return cls(dictionary["mux_number"], dictionary["ain"])
+
+
+class DataType(Enum):
+    TC = "thermocouple"
+    PT = "pressuretransducer"
+    TEST = "test"
+
+
+@dataclass
+class TimeBasedData:
+    time: datetime
+    value: float
+
+
+@dataclass
+class SensorOutput:
+    data_type: DataType
+    source: InputId
+    data: list[TimeBasedData]
+
+
+class SensorData(ABC):
+    @abstractmethod
+    def get_data(self) -> SensorOutput:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def to_dict(self) -> dict:
+        raise NotImplementedError()
+
+    @classmethod
+    @abstractmethod
+    def from_dict(cls, dictionary: dict) -> Self:
+        raise NotImplementedError()
 
 
 class Sensor:
@@ -29,7 +124,7 @@ class Sensor:
             raise ValueError(f"Expected AIN label like 'AIN48', got '{label}'")
         return int(label.replace("AIN", ""))
 
-    def configure_labjack(self, ljm, handle):
+    def configure_labjack(self, ljm, lj):
         """
         Configure analog input for LabJack T7.
 
@@ -45,9 +140,7 @@ class Sensor:
 
         ain_num = self._ain_num(self.ain)
 
-        # ----------------------------
-        # Differential / Single-ended
-        # ----------------------------
+        # Differential
         if self.differential:
             if not self.negative_ain:
                 raise ValueError(
@@ -71,51 +164,12 @@ class Sensor:
                     "Allowed: AIN0->AIN1, AIN2->AIN3, or Mux80 (AINx->AINx+8)."
                 )
 
-            ljm.eWriteName(handle, f"{self.ain}_RANGE", 0.01)
-            ljm.eWriteName(handle, f"{self.ain}_NEGATIVE_CH", neg_num)
-            # mode_desc = f"DIFFERENTIAL ({self.ain} - {self.negative_ain})"
+            ljm.eWriteName(lj.handle, f"{self.ain}_RANGE", 0.01)
+            ljm.eWriteName(lj.handle, f"{self.ain}_NEGATIVE_CH", neg_num)
 
         else:
             # Single-ended (GND reference)
-            ljm.eWriteName(handle, f"{self.ain}_NEGATIVE_CH", 199)
-            mode_desc = "SINGLE-ENDED (GND)"
-
-        # ----------------------------
-        # Sensor-type-specific config
-        # ----------------------------
-        # if self.sensor_type == "thermocouple":
-        #     # Thermocouple MUST be differential
-        #     if not self.differential:
-        #         raise ValueError(f"{self.ain} thermocouple must be differential")
-
-        #     # Enable Extended Feature: Type K thermocouple
-        #     ljm.eWriteName(handle, f"{self.ain}_EF_INDEX", 21)     # Type K
-        #     ljm.eWriteName(handle, f"{self.ain}_EF_CONFIG_A", 1)   # Output in °C
-
-        #     # Tight range improves noise
-        #     ljm.eWriteName(handle, f"{self.ain}_RANGE", 0.1)
-
-        #     print(f"Configured {self.ain} as THERMOCOUPLE (Type K, °C) | {mode_desc}")
-        #     return
-
-        # elif self.sensor_type == "load_cell":
-        #     # Load cells: very small differential voltages
-        #     ljm.eWriteName(handle, f"{self.ain}_RANGE", 0.01)
-        #     ljm.eWriteName(handle, f"{self.ain}_EF_INDEX", 13)      # Load cell / bridge
-        #     ljm.eWriteName(handle, f"{self.ain}_EF_CONFIG_A", 2.0) # mV/V (example)
-        #     ljm.eWriteName(handle, f"{self.ain}_EF_CONFIG_B", 100) # full scale lbs
-        #     print(f"Configured {self.ain} as LOAD CELL | {mode_desc}")
-
-        # else:
-        #     # Default analog (pressure transducers, etc.)
-        #     ljm.eWriteName(handle, f"{self.ain}_RANGE", 10.0)
-        #     print(f"Configured {self.ain} as ANALOG | {mode_desc}")
-
-        # ----------------------------
-        # Common ADC settings
-        # ----------------------------
-        # ljm.eWriteName(handle, f"{self.ain}_RESOLUTION_INDEX", 8)
-        # ljm.eWriteName(handle, f"{self.ain}_SETTLING_US", 10)
+            ljm.eWriteName(lj.handle, f"{self.ain}_NEGATIVE_CH", 199)
 
     def read_value(self, ljm, handle):
         value = ljm.eReadName(handle, self.ain)
@@ -125,6 +179,7 @@ class Sensor:
 
 def load_sensors_from_json(
     path: str = "labjack_channels.json",
+    board: str | None = None,
 ) -> List[Sensor]:
     try:
         with open(path, "r") as f:
@@ -140,6 +195,9 @@ def load_sensors_from_json(
     sensors = []
     for entry in data:
         try:
+            if board and entry.get("Board") != board:
+                continue
+
             sensors.append(
                 Sensor(
                     ain=entry["AIN"],

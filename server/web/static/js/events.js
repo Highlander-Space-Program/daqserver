@@ -91,6 +91,13 @@ async function saveEquation() {
 
     if (!payload.name || !payload.expression) return;
 
+    const testResult = evaluateCustomFunction(payload.expression, [1, 2, 3]);
+
+    if (testResult === null) {
+        alert("Equation must be a valid JavaScript function, like: (a, b, c) => a + b + c");
+        return;
+    }
+
     if (editingEquationId) {
         await apiSend(`/api/equations/${editingEquationId}`, "PATCH", payload);
     } else {
@@ -112,4 +119,26 @@ async function saveGraph() {
     await apiSend("/api/graphs", "POST", payload);
     closeGraphModal();
     await loadConfig();
+}
+
+async function deleteSensor(sensorId) {
+    const confirmed = confirm("Delete this sensor?");
+    if (!confirmed) return;
+
+    const res = await apiDelete(`/api/sensors/${sensorId}`);
+    console.log("delete sensor response:", res);
+
+    await loadConfig();
+    renderAll();
+}
+
+async function deleteEquation(equationId) {
+    const confirmed = confirm("Delete this equation?");
+    if (!confirmed) return;
+
+    const res = await apiDelete(`/api/equations/${equationId}`);
+    console.log("delete equation response:", res);
+
+    await loadConfig();
+    renderAll();
 }
