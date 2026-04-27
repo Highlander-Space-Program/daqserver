@@ -3,225 +3,232 @@ const leftScrollList = document.getElementById("left-scroll-list");
 const leftListTitle = document.getElementById("left-list-title");
 
 function renderAll() {
-    renderStats();
-    renderPortOptions();
-    renderEquationOptions();
-    renderGraphSensorOptions();
-    renderLeftPanel();
-    renderGraphs();
+  renderStats();
+  renderPortOptions();
+  renderEquationOptions();
+  renderGraphSensorOptions();
+  renderLeftPanel();
+  renderGraphs();
 }
 
 function renderStats() {
-    document.getElementById("read-rate").textContent =
-        backendConfig.read_rate_hz === "--" ? "-- Hz" : `${backendConfig.read_rate_hz} Hz`;
+  document.getElementById("read-rate").textContent =
+    backendConfig.read_rate_hz === "--"
+      ? "-- Hz"
+      : `${backendConfig.read_rate_hz} Hz`;
 
-    document.getElementById("active-graphs").textContent =
-        backendConfig.graphs.length;
+  document.getElementById("active-graphs").textContent =
+    backendConfig.graphs.length;
 }
 
 function renderPortOptions() {
-    const sensorPortInput = document.getElementById("sensor-port-input");
-    sensorPortInput.innerHTML = "";
+  const sensorPortInput = document.getElementById("sensor-port-input");
+  sensorPortInput.innerHTML = "";
 
-    backendConfig.ports.forEach(port => {
-        const option = document.createElement("option");
-        option.value = port;
-        option.textContent = port;
-        sensorPortInput.appendChild(option);
-    });
+  backendConfig.ports.forEach((port) => {
+    const option = document.createElement("option");
+    option.value = port;
+    option.textContent = port;
+    sensorPortInput.appendChild(option);
+  });
 }
 
 function renderEquationOptions() {
-    const sensorEquationInput = document.getElementById("sensor-equation-input");
-    sensorEquationInput.innerHTML = "";
+  const sensorEquationInput = document.getElementById("sensor-equation-input");
+  sensorEquationInput.innerHTML = "";
 
-    const none = document.createElement("option");
-    none.value = "";
-    none.textContent = "No equation";
-    sensorEquationInput.appendChild(none);
+  const none = document.createElement("option");
+  none.value = "";
+  none.textContent = "No equation";
+  sensorEquationInput.appendChild(none);
 
-    backendConfig.equations.forEach(eq => {
-        const option = document.createElement("option");
-        option.value = eq.id;
-        option.textContent = eq.name;
-        sensorEquationInput.appendChild(option);
-    });
+  backendConfig.equations.forEach((eq) => {
+    const option = document.createElement("option");
+    option.value = eq.id;
+    option.textContent = eq.name;
+    sensorEquationInput.appendChild(option);
+  });
 }
 
 function renderGraphSensorOptions() {
-    const graphSensorInput = document.getElementById("graph-sensor-input");
-    graphSensorInput.innerHTML = "";
+  const graphSensorInput = document.getElementById("graph-sensor-input");
+  graphSensorInput.innerHTML = "";
 
-    backendConfig.sensors.forEach(sensor => {
-        const option = document.createElement("option");
-        option.value = sensor.id;
-        option.textContent = `${sensor.name} (${sensor.port})`;
-        graphSensorInput.appendChild(option);
-    });
+  backendConfig.sensors.forEach((sensor) => {
+    const option = document.createElement("option");
+    option.value = sensor.id;
+    option.textContent = `${sensor.name} (${sensor.port})`;
+    graphSensorInput.appendChild(option);
+  });
 }
 
 function renderLeftPanel() {
-    leftScrollList.innerHTML = "";
+  leftScrollList.innerHTML = "";
 
-    if (activeLeftTab === "sensors") {
-        leftListTitle.textContent = "Active Sensors";
+  if (activeLeftTab === "sensors") {
+    leftListTitle.textContent = "Active Sensors";
 
-        if (backendConfig.sensors.length === 0) {
-            leftScrollList.innerHTML = `<div class="empty-small">No sensors yet.</div>`;
-            return;
-        }
-
-        backendConfig.sensors.forEach(sensor => {
-            const eq = backendConfig.equations.find(e => e.id === sensor.equation_id);
-
-            const div = document.createElement("div");
-            div.className = "left-item";
-
-            div.innerHTML = `
-                <div>
-                    <strong>${sensor.name}</strong>
-                    <small>${sensor.port} • ${eq ? eq.name : "No equation"}</small>
-                </div>
-                <div class="item-actions">
-                    <button class="tiny-btn edit-btn">Edit</button>
-                    <button class="tiny-btn delete-btn">Delete</button>
-                </div>
-            `;
-
-            div.querySelector(".edit-btn").onclick = () => openEditSensor(sensor);
-            div.querySelector(".delete-btn").onclick = () => deleteSensor(sensor.id);
-
-            leftScrollList.appendChild(div);
-        });
+    if (backendConfig.sensors.length === 0) {
+      leftScrollList.innerHTML = `<div class="empty-small">No sensors yet.</div>`;
+      return;
     }
-    if (activeLeftTab === "equations") {
-        leftListTitle.textContent = "Saved Equations";
 
-        if (backendConfig.equations.length === 0) {
-            leftScrollList.innerHTML = `<div class="empty-small">No equations yet.</div>`;
-            return;
-        }
+    backendConfig.sensors.forEach((sensor) => {
+      const eq = backendConfig.equations.find(
+        (e) => e.id === sensor.equation_id
+      );
 
-        backendConfig.equations.forEach(eq => {
-            const usedBy = backendConfig.sensors
-                .filter(s => s.equation_id === eq.id)
-                .map(s => s.name)
-                .join(", ") || "No sensors";
+      const div = document.createElement("div");
+      div.className = "left-item";
 
-            const div = document.createElement("div");
-            div.className = "left-item";
+      div.innerHTML = `
+        <div>
+          <strong>${sensor.name}</strong>
+          <small>${sensor.port} • ${eq ? eq.name : "No equation"}</small>
+        </div>
+        <div class="item-actions">
+          <button class="tiny-btn edit-btn">Edit</button>
+          <button class="tiny-btn delete-btn">Delete</button>
+        </div>
+      `;
 
-            div.innerHTML = `
-                <div>
-                    <strong>${eq.name}</strong>
-                    <small>Used by: ${usedBy}</small>
-                </div>
-                <div class="item-actions">
-                    <button class="tiny-btn edit-btn">Edit</button>
-                    <button class="tiny-btn delete-btn">Delete</button>
-                </div>
-            `;
+      div.querySelector(".edit-btn").onclick = () => openEditSensor(sensor);
+      div.querySelector(".delete-btn").onclick = () => deleteSensor(sensor.id);
 
-            div.querySelector(".edit-btn").onclick = () => openEditEquation(eq);
-            div.querySelector(".delete-btn").onclick = () => deleteEquation(eq.id);
+      leftScrollList.appendChild(div);
+    });
 
-            leftScrollList.appendChild(div);
-        });
+    return;
+  }
+
+  if (activeLeftTab === "equations") {
+    leftListTitle.textContent = "Saved Equations";
+
+    if (backendConfig.equations.length === 0) {
+      leftScrollList.innerHTML = `<div class="empty-small">No equations yet.</div>`;
+      return;
     }
+
+    backendConfig.equations.forEach((eq) => {
+      const usedBy =
+        backendConfig.sensors
+          .filter((s) => s.equation_id === eq.id)
+          .map((s) => s.name)
+          .join(", ") || "No sensors";
+
+      const div = document.createElement("div");
+      div.className = "left-item";
+
+      div.innerHTML = `
+        <div>
+          <strong>${eq.name}</strong>
+          <small>Used by: ${usedBy}</small>
+        </div>
+        <div class="item-actions">
+          <button class="tiny-btn edit-btn">Edit</button>
+          <button class="tiny-btn delete-btn">Delete</button>
+        </div>
+      `;
+
+      div.querySelector(".edit-btn").onclick = () => openEditEquation(eq);
+      div.querySelector(".delete-btn").onclick = () => deleteEquation(eq.id);
+
+      leftScrollList.appendChild(div);
+    });
+  }
 }
 
 function renderGraphs() {
-    dashboardGrid.innerHTML = "";
+  dashboardGrid.innerHTML = "";
 
-    const totalPages = Math.max(
-        1,
-        Math.floor(backendConfig.graphs.length / GRAPHS_PER_PAGE) + 1
-    );
+  const totalPages = Math.max(
+    1,
+    Math.floor(backendConfig.graphs.length / GRAPHS_PER_PAGE) + 1
+  );
 
-    if (currentGraphPage >= totalPages) currentGraphPage = totalPages - 1;
+  if (currentGraphPage >= totalPages) currentGraphPage = totalPages - 1;
 
-    const start = currentGraphPage * GRAPHS_PER_PAGE;
-    const pageGraphs = backendConfig.graphs.slice(start, start + GRAPHS_PER_PAGE);
+  const start = currentGraphPage * GRAPHS_PER_PAGE;
+  const pageGraphs = backendConfig.graphs.slice(start, start + GRAPHS_PER_PAGE);
 
-    pageGraphs.forEach(graph => {
-        const sensor = backendConfig.sensors.find(s => s.id === graph.sensor_id);
+  pageGraphs.forEach((graph) => {
+    const sensor = backendConfig.sensors.find((s) => s.id === graph.sensor_id);
 
-        const panel = document.createElement("div");
-        panel.className = "graph-panel";
+    const panel = document.createElement("div");
+    panel.className = "graph-panel";
 
-        const canvasId = `chart-${graph.id}`;
+    const canvasId = `chart-${graph.id}`;
 
-        panel.innerHTML = `
-            <div class="graph-top">
-                <div>
-                    <div class="graph-title">${graph.name}</div>
-                    <small>${sensor ? sensor.name : "Unknown sensor"}</small>
-                </div>
+    panel.innerHTML = `
+      <div class="graph-top">
+        <div>
+          <div class="graph-title">${graph.name}</div>
+          <small>${sensor ? sensor.name : "Unknown sensor"}</small>
+        </div>
 
-                <div class="graph-actions">
-                    <button class="tiny-btn edit-graph-btn">Edit</button>
-                    <button class="tiny-btn tare-graph-btn">Tare</button>
-                    <button class="tiny-btn delete-graph-btn">Delete</button>
-                    <button class="tiny-btn zoom-graph-btn">Zoom</button>
-                </div>
-            </div>
+        <div class="graph-actions">
+          <button class="tiny-btn edit-graph-btn">Edit</button>
+          <button class="tiny-btn tare-graph-btn">Tare</button>
+          <button class="tiny-btn delete-graph-btn">Delete</button>
+          <button class="tiny-btn zoom-graph-btn">Zoom</button>
+        </div>
+      </div>
 
-            <div class="chart-wrap">
-                <canvas id="${canvasId}"></canvas>
-            </div>
-        `;
+      <div class="chart-wrap">
+        <canvas id="${canvasId}"></canvas>
+      </div>
+    `;
 
-        panel.querySelector(".edit-graph-btn").onclick = () => openEditGraph(graph);
-        panel.querySelector(".tare-graph-btn").onclick = () => tareGraph(graph.id);
-        panel.querySelector(".delete-graph-btn").onclick = () => deleteGraph(graph.id);
-        panel.querySelector(".zoom-graph-btn").onclick = () => zoomGraph(graph);
+    panel.querySelector(".edit-graph-btn").onclick = () => openEditGraph(graph);
+    panel.querySelector(".tare-graph-btn").onclick = () => tareGraph(graph.id);
+    panel.querySelector(".delete-graph-btn").onclick = () => deleteGraph(graph.id);
+    panel.querySelector(".zoom-graph-btn").onclick = () => zoomGraph(graph);
 
-        dashboardGrid.appendChild(panel);
-        buildBlankChart(canvasId, graph.name);
-    });
+    dashboardGrid.appendChild(panel);
+    buildBlankChart(canvasId, graph.name, graph.id);
+  });
 
-    const remaining = GRAPHS_PER_PAGE - pageGraphs.length;
+  const remaining = GRAPHS_PER_PAGE - pageGraphs.length;
 
-    for (let i = 0; i < remaining; i++) {
-        const skeleton = document.createElement("button");
-        skeleton.className = "graph-panel skeleton-graph";
-        skeleton.innerHTML = `
-            <div class="plus">+</div>
-            <div>Add Graph</div>
-        `;
-        skeleton.onclick = openGraphModal;
-        dashboardGrid.appendChild(skeleton);
-    }
+  for (let i = 0; i < remaining; i++) {
+    const skeleton = document.createElement("button");
+    skeleton.className = "graph-panel skeleton-graph";
+    skeleton.innerHTML = `
+      <div class="plus">+</div>
+      <div>Add Graph</div>
+    `;
+    skeleton.onclick = openGraphModal;
+    dashboardGrid.appendChild(skeleton);
+  }
 
-    document.getElementById("graph-page-label").textContent =
-        `Page ${currentGraphPage + 1} of ${totalPages}`;
+  document.getElementById("graph-page-label").textContent =
+    `Page ${currentGraphPage + 1} of ${totalPages}`;
 }
 
 function zoomGraph(graph) {
-    dashboardGrid.innerHTML = "";
+  dashboardGrid.innerHTML = "";
 
-    const container = document.createElement("div");
-    container.style.width = "100%";
-    container.style.height = "80vh";
+  const container = document.createElement("div");
+  container.style.width = "100%";
+  container.style.height = "80vh";
 
-    const canvasId = `zoom-chart-${graph.id}`;
+  const canvasId = `zoom-chart-${graph.id}`;
 
-    container.innerHTML = `
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-            <h2>${graph.name} (Zoomed)</h2>
-            <button id="back-btn" class="secondary-btn">← Back</button>
-        </div>
+  container.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <h2>${graph.name} (Zoomed)</h2>
+      <button id="back-btn" class="secondary-btn">← Back</button>
+    </div>
 
-        <div style="height:100%;">
-            <canvas id="${canvasId}"></canvas>
-        </div>
-    `;
+    <div style="height:100%;">
+      <canvas id="${canvasId}"></canvas>
+    </div>
+  `;
 
-    dashboardGrid.appendChild(container);
+  dashboardGrid.appendChild(container);
+  buildBlankChart(canvasId, graph.name, graph.id);
 
-    buildBlankChart(canvasId, graph.name);
-
-    document.getElementById("back-btn").onclick = () => {
-        renderGraphs();
-    };
+  document.getElementById("back-btn").onclick = () => {
+    renderGraphs();
+  };
 }
