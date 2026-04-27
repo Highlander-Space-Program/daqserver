@@ -117,3 +117,24 @@ function handleStreamData(message) {
     }
   });
 }
+function updateWebSocketSubscriptions() {
+  // Ensure we have an open connection before trying to send
+  if (!wsConnection || wsConnection.readyState !== WebSocket.OPEN) return;
+
+  const activePorts = new Set();
+  backendConfig.graphs.forEach((graph) => {
+    const sensor = backendConfig.sensors.find((s) => s.id === graph.sensor_id);
+    if (sensor && sensor.port) {
+      activePorts.add(sensor.port);
+    }
+  });
+
+  if (activePorts.size > 0) {
+    wsConnection.send(
+      JSON.stringify({
+        action: "subscribe",
+        arguments: Array.from(activePorts),
+      }),
+    );
+  }
+}
