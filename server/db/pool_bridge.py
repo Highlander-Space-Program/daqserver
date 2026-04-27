@@ -44,7 +44,7 @@ class PoolBridge:
         print("PoolBridge started")
 
     # ========== CALLBACK (ASYNC) ==========
-    async def handle_data(self, data):
+    def handle_data(self, data):
         """
         Receives datapool events (async callback)
         Converts to Influx Point
@@ -71,10 +71,10 @@ class PoolBridge:
         Supports dict, list, or structured objects
         """
 
-        if isinstance(data, list:
+        if isinstance(data, list):
             return [self.build_point(d) for d in data]
 
-        if hassattr(data, "to_dict"):
+        if hasattr(data, "to_dict"):
             data = data.to_dict()
 
         if isinstance(data, dict):
@@ -102,14 +102,37 @@ class PoolBridge:
 
     # ========== FLUSH LOOP ==========
     def flush_loop(self):
-        while True:
+        while not self.shutdown.is_set():
             time.sleep(self.FLUSH_INTERVAL)
 
             with self.batch_lock:
-                if self.batch:
-                    try:
-                        self.client.write(self.batch)
-                        print(f"[PoolBridge] flushed {len(self.batch)}")
-                        self.batch = []
-                    except Exception as e:
-                        print("[PoolBridge flush error]:", e)
+                self.flush_batch()
+
+    def flush_batch(self):
+        if not self.batch:
+            return
+
+        try:
+            self.client.write(self.batch)
+            print(f"[PoolBridge] wrote {len(self.batch)}")
+            self.batch[]
+        except Exception as e:
+            print("[PoolBridge write error]:", e)
+
+    # ========== SHUTDOWN ==========
+    def shutdown(self):
+        print("[PoolBridge] shutting down... flushing remaining data")
+
+        self.shutdown_event.set()
+
+        with self.batch_lock:
+            self.flush_batch()
+
+        try:
+            self.client.close()
+        except Exception:
+            pass
+
+        print("[PoolBridge] shutdown complete")
+
+
