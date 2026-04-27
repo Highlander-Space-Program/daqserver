@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Controls Page</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='css/styles.css') }}?v=3" />
+</head>
+<body>
+    <main class="standalone-page">
+        <div class="standalone-header">
+            <h1>Controls Page</h1>
+            <p>Shows which pressure transducer and load cell ports are connected to sensors.</p>
+        </div>
+
+        <div class="controls-grid">
+            <section class="control-box">
+                <h2>Pressure Transducers</h2>
+                <div id="pt-list" class="port-grid"></div>
+            </section>
+
+            <section class="control-box">
+                <h2>Load Cells</h2>
+                <div id="lc-list" class="port-grid"></div>
+            </section>
+        </div>
+    </main>
+
+    <script>
+        async function loadControls() {
+            const res = await fetch("/api/config");
+            const config = await res.json();
+            const sensors = config.sensors || [];
+
+            const ptList = document.getElementById("pt-list");
+            const lcList = document.getElementById("lc-list");
+
+            ptList.innerHTML = "";
+            lcList.innerHTML = "";
+
+            for (let i = 1; i <= 8; i++) {
+                const port = `PT-${i}`;
+                const sensor = sensors.find(s => s.port === port);
+
+                const div = document.createElement("div");
+                div.className = `port-card ${sensor ? "connected" : ""}`;
+                div.innerHTML = `
+                    <div class="port-number">${port}</div>
+                    <div class="port-status">${sensor ? "Connected" : "Empty"}</div>
+                    <div class="port-sensor">${sensor ? sensor.name : "No sensor"}</div>
+                `;
+                ptList.appendChild(div);
+            }
+
+            for (let i = 1; i <= 8; i++) {
+                const port = `LC-${i}`;
+                const sensor = sensors.find(s => s.port === port);
+
+                const div = document.createElement("div");
+                div.className = `port-card ${sensor ? "connected" : ""}`;
+                div.innerHTML = `
+                    <div class="port-number">${port}</div>
+                    <div class="port-status">${sensor ? "Connected" : "Empty"}</div>
+                    <div class="port-sensor">${sensor ? sensor.name : "No sensor"}</div>
+                `;
+                lcList.appendChild(div);
+            }
+        }
+
+        loadControls();
+        setInterval(loadControls, 1000);
+    </script>
+</body>
+</html>

@@ -1,11 +1,55 @@
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from enum import Enum
 import json
-from typing import List, Optional
+from datetime import datetime
+from typing import List, Optional, Self
+
+
+class T7ID:
+    mux_number: int
+    ain: int
 
 
 @dataclass
-class SensorData:
-    pass
+class T8ID:
+    mux_number: int
+    ain: int
+
+
+LabjackID = T7ID | T8ID
+
+
+@dataclass
+class InputId:
+    sensor_type: LabjackID
+
+
+class DataType(Enum):
+    TC = "thermocouple"
+    PT = "pressuretransducer"
+
+
+@dataclass
+class TimeBasedData:
+    time: datetime
+    data_type: DataType
+    value: float
+
+
+class SensorData(ABC):
+    @abstractmethod
+    def get_data(self) -> list[TimeBasedData]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def to_dict(self) -> dict:
+        raise NotImplementedError()
+
+    @classmethod
+    @abstractmethod
+    def from_dict(cls, dictionary: dict) -> Self:
+        raise NotImplementedError()
 
 
 class Sensor:
@@ -100,7 +144,6 @@ def load_sensors_from_json(
     sensors = []
     for entry in data:
         try:
-
             if board and entry.get("Board") != board:
                 continue
 

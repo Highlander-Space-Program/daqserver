@@ -1,0 +1,33 @@
+<section id="page-dashboard" class="page active">
+    <div class="page-header">
+        <div>
+            <h2>Clementine Dashboard</h2>
+            <p class="page-subtitle">DAQ page for live sensor graphs.</p>
+        </div>
+    </div>
+
+    <div class="configure-row">
+        <div class="metric-box">
+            <div class="metric-title">Read Rate</div>
+            <div id="read-rate" class="metric-value neon-cyan">-- Hz</div>
+        </div>
+
+        <div class="metric-box">
+            <div class="metric-title">Active Graphs</div>
+            <div id="active-graphs" class="metric-value neon-green">0</div>
+        </div>
+
+        <div class="metric-box">
+            <div class="metric-title">Configure</div>
+            <div class="metric-value neon-orange">Ready</div>
+        </div>
+    </div>
+
+    <div id="dashboard-grid" class="dashboard-grid"></div>
+
+    <div class="page-controls">
+        <button id="prev-graph-page" class="secondary-btn">Previous</button>
+        <span id="graph-page-label">Page 1 of 1</span>
+        <button id="next-graph-page" class="secondary-btn">Next</button>
+    </div>
+</section>
