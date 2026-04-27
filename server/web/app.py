@@ -117,16 +117,14 @@ async def get_graphs_from_db():
 async def callback(sensor_data: SensorData):
     data = sensor_data.get_data()
 
-    print("Incoming:", data.source.to_dict())
+    
 
     topic = None
     for destination, source in PORT_OPTIONS.items():
-        print("Comparing to:", data.source.to_dict())
         if source == data.source:
             topic = destination
 
     if topic is not None:
-        print("Broadcasting:", topic)
         await manager.broadcast(topic, sensor_data)
 
 
@@ -306,6 +304,8 @@ async def websocket_endpoint(websocket: WebSocket):
 
             # TODO: argument counts need to be checked
             if action == "subscribe":
+                print(arguments)
+                breakpoint()
                 manager.subscribe(websocket, *arguments)
             elif action == "unsubscribe":
                 manager.unsubscribe(websocket, *arguments)
