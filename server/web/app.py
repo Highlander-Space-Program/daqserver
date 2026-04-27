@@ -1,6 +1,7 @@
 from typing import Any
 from uuid import uuid4
 import aiosqlite
+import asyncio
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -8,32 +9,22 @@ from starlette.responses import HTMLResponse
 from pydantic import BaseModel
 
 from server.web.connection import ConnectionManager, ErrorMessage
-from server.streaming.sensors import T7ID, InputId, TestID
+from server.streaming.sensors import T7ID, InputId, SensorData, TestID
+from server.pool import Datapool, Topic
 
 app = FastAPI()
 manager = ConnectionManager()
 app.mount("/static", StaticFiles(directory="./server/web/static"), name="static")
 templates = Jinja2Templates(directory="./server/web/templates")
+datapool = Datapool(asyncio.new_event_loop())
 
 PORT_OPTIONS: dict[str, InputId] = {
     "PT-1": T7ID(4, 10),
     "PT-2": T7ID(4, 10),
     "PT-3": T7ID(4, 10),
-    "PT-4": T7ID(4, 10),
-    "PT-5": T7ID(4, 10),
-    "PT-6": T7ID(4, 10),
-    "PT-7": T7ID(4, 10),
-    "PT-8": T7ID(4, 10),
-    "PT-9": T7ID(4, 10),
     "TC-1": T7ID(4, 10),
     "TC-2": T7ID(4, 10),
     "TC-3": T7ID(4, 10),
-    "TC-4": T7ID(4, 10),
-    "TC-5": T7ID(4, 10),
-    "TC-6": T7ID(4, 10),
-    "TC-7": T7ID(4, 10),
-    "TC-8": T7ID(4, 10),
-    "TC-9": T7ID(4, 10),
     "test": TestID(),
 }
 
@@ -109,9 +100,22 @@ async def get_sensors_from_db():
     ]
 
 
+async def callback(sensor_data: SensorData):
+    data = sensor_data.get_data()
+
+    topic = None
+    for destination, source in PORT_OPTIONS.items():
+        if source == data.source:
+            topic = destination
+
+    if topic is not None:
+        await manager.broadcast(topic, sensor_data)
+
+
 @app.on_event("startup")
 async def startup():
     await init_db()
+    datapool.subscribe(Topic.SENSORDATA, callback)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -132,7 +136,7 @@ async def cameras_page(request: Request):
 @app.get("/api/config")
 async def api_config():
     return {
-        "ports": PORT_OPTIONS,
+        "ports": list(PORT_OPTIONS.keys()),
         "equations": await get_equations_from_db(),
         "sensors": await get_sensors_from_db(),
         "graphs": list(graphs.values()),

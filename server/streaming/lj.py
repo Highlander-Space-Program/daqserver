@@ -45,7 +45,11 @@ class LabJackData(SensorData):
 
     @override
     def to_dict(self) -> dict:
-        raise NotImplementedError()
+        return {
+            "data_type": self.data_type.value,
+            "input_id": self.input_id.to_dict(),
+            "data": self.data,
+        }
 
     @classmethod
     @override
@@ -56,7 +60,7 @@ class LabJackData(SensorData):
 class LabJackTest:
     def __init__(self, datapool: Datapool):
         self.datapool = datapool
-        self.input_id = InputId(TestID())
+        self.input_id = TestID()
 
     def start_stream(self):
         while True:

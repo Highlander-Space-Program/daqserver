@@ -3,6 +3,8 @@ from typing import override
 
 from fastapi import WebSocket
 
+from server.streaming.sensors import SensorData
+
 
 class Sendable(ABC):
     @abstractmethod
@@ -49,7 +51,7 @@ class ConnectionManager:
     def unsubscribe(self, websocket: WebSocket, topic: str):
         self.active_connections[websocket].discard(topic)
 
-    async def broadcast(self, topic: str, data: dict):
+    async def broadcast(self, topic: str, data: SensorData):
         for ws, topics in self.active_connections.items():
             if topic in topics:
                 await ws.send_json({"topic": topic, "data": data})
