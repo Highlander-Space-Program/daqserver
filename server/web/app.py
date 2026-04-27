@@ -1,7 +1,6 @@
 from typing import Any
 from uuid import uuid4
 import aiosqlite
-
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -10,9 +9,10 @@ from pydantic import BaseModel
 
 from server.web.connection import ConnectionManager, ErrorMessage
 
+from server.web.connection import ConnectionManager, ErrorMessage
+
 app = FastAPI()
 manager = ConnectionManager()
-
 app.mount("/static", StaticFiles(directory="./server/web/static"), name="static")
 templates = Jinja2Templates(directory="./server/web/templates")
 
@@ -61,23 +61,22 @@ async def init_db():
 
         await db.commit()
 
+
 async def get_equations_from_db():
     async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute("SELECT id, name, expression FROM equations") as cursor:
+        async with db.execute(
+            "SELECT id, name, expression FROM equations"
+        ) as cursor:
             rows = await cursor.fetchall()
 
-    return [
-        {
-            "id": row[0],
-            "name": row[1],
-            "expression": row[2]
-        }
-        for row in rows
-    ]
+    return [{"id": row[0], "name": row[1], "expression": row[2]} for row in rows]
+
 
 async def get_sensors_from_db():
     async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute("SELECT id, name, port, equation_id FROM sensors") as cursor:
+        async with db.execute(
+            "SELECT id, name, port, equation_id FROM sensors"
+        ) as cursor:
             rows = await cursor.fetchall()
 
     return [
@@ -90,9 +89,11 @@ async def get_sensors_from_db():
         for row in rows
     ]
 
+
 @app.on_event("startup")
 async def startup():
     await init_db()
+
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
@@ -142,7 +143,6 @@ async def add_equation(payload: EquationPayload):
     }
 
 
-
 @app.patch("/api/equations/{equation_id}")
 async def edit_equation(equation_id: str, payload: EquationPayload):
     async with aiosqlite.connect(DB_PATH) as db:
@@ -165,8 +165,6 @@ async def edit_equation(equation_id: str, payload: EquationPayload):
         "name": payload.name,
         "expression": payload.expression,
     }
-
-
 
 
 @app.post("/api/sensors")
@@ -256,6 +254,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 )
                 return
 
+            # TODO: argument counts need to be checked
             if action == "subscribe":
                 manager.subscribe(websocket, *arguments)
             elif action == "unsubscribe":
@@ -263,6 +262,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
     except WebSocketDisconnect:
         manager.disconnect(websocket)
+
 
 @app.delete("/api/equations/{equation_id}")
 async def delete_equation(equation_id: str):
@@ -287,6 +287,7 @@ async def delete_equation(equation_id: str):
             return {"error": "Equation not found"}
 
     return {"success": True, "id": equation_id}
+
 
 @app.delete("/api/sensors/{sensor_id}")
 async def delete_sensor(sensor_id: str):
