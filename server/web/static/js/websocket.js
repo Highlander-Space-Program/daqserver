@@ -106,7 +106,7 @@ function handleStreamData(message) {
       chart.data.datasets[0].data.push(finalValue);
 
       // Shift data off the array so the chart doesn't grow infinitely and crash the browser
-      const MAX_DATA_POINTS = 50;
+      const MAX_DATA_POINTS = 1000;
       if (chart.data.labels.length > MAX_DATA_POINTS) {
         chart.data.labels.shift();
         chart.data.datasets[0].data.shift();
