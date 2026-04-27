@@ -51,10 +51,10 @@ class PoolBridge:
         """
 
         try:
-            point = self.build_point(data)
+            points = self.normalize(data)
 
             with self.batch_lock:
-                self.batch.append(point)
+                self.batch.append(points)
 
                 if len(self.batch) >= self.BATCH_SIZE:
                     self.client.write(self.batch)
@@ -63,6 +63,24 @@ class PoolBridge:
 
         except Exception as e:
             print("[PoolBridge] error:", e)
+
+    # ========== NORMALIZE DATA  ==========
+    def normalize(self, data):
+        """
+        Converts any datapool payload into Influx Points
+        Supports dict, list, or structured objects
+        """
+
+        if isinstance(data, list:
+            return [self.build_point(d) for d in data]
+
+        if hassattr(data, "to_dict"):
+            data = data.to_dict()
+
+        if isinstance(data, dict):
+            return [self.build_point(data)]
+
+        raise ValueError(f"Unsupported datapool format: {type(data)}")
 
     # ========== POINT BUILDER ==========
     def build_point(self, payload):
@@ -75,19 +93,10 @@ class PoolBridge:
 
             if key in self.TAG_KEYS:
                 point.tag(key, str(value))
-                continue
-
-            if isinstance(value, (int, float)):
+            elif isinstance(value, (int, float, bool)):
                 point.field(key, value)
-
-            elif isinstance(value, bool):
-                point.field(key, value)
-
-            elif isinstance(value, str):
-                if len(value) < 32:
-                    point.tag(key, value)
-                else:
-                    point.field(key, value)
+            else:
+                point.tag(key, str(value))
 
         return point
 
