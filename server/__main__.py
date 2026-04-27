@@ -21,19 +21,18 @@ async def start():
     loop = asyncio.get_running_loop()
     config = uvicorn.Config(app, host="0.0.0.0", port=8000)
     server = uvicorn.Server(config)
-    await server.serve()
 
-
-def main():
     load_dotenv()
+
     influx_url = os.getenv("INFLUXDB_URL")
     influx_token = os.getenv("INFLUXDB_TOKEN")
     influx_database = os.getenv("INFLUXDB_DATABASE")
     mqtt_host = os.getenv("MQTT_HOST")
     mqtt_port = int(os.getenv("MQTT_PORT", 1883))
 
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
+    datapool = Datapool(loop)
+    bridge = None
+    pool_bridge = None
 
     influx_exists = all([influx_url, influx_token, influx_database, mqtt_host])
     if influx_exists:
@@ -46,13 +45,17 @@ def main():
     print(f"influx exists: {influx_exists}")
 
     try:
-        asyncio.run(start())
-    except Exception as e:
-        print("[Server crash]:", e)
+        await server.serve()
     finally:
+        print("[Shutdown] cleaning up...")
+
         if pool_bridge:
             pool_bridge.shutdown()
+        if bridge:
+            bridge.shutdown()
 
+def main():
+    asyncio.run(start())
 
 if __name__ == "__main__":
     main()
