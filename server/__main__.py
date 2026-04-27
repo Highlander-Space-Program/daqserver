@@ -2,10 +2,12 @@ import asyncio
 import os
 
 from fastapi import WebSocket
-from server.web.app import app
+from server.web.app import app, datapool
 import uvicorn
 from dotenv import load_dotenv
 from server.db.bridge import Bridge
+
+from server.streaming.lj import LabJackTest
 
 
 @app.websocket("/ws")
@@ -39,6 +41,9 @@ def main():
         bridge.start()
 
     print(f"influx exists: {influx_exists}")
+
+    ljtest = LabJackTest(datapool)
+    ljtest.init()
 
     try:
         asyncio.run(start())

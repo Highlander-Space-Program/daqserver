@@ -1,5 +1,6 @@
 import asyncio
 import random
+from threading import Thread
 import time
 from datetime import datetime
 from typing import Any, Self, override
@@ -48,7 +49,7 @@ class LabJackData(SensorData):
         return {
             "data_type": self.data_type.value,
             "input_id": self.input_id.to_dict(),
-            "data": self.data,
+            "data": self.data.to_dict(),
         }
 
     @classmethod
@@ -61,6 +62,10 @@ class LabJackTest:
     def __init__(self, datapool: Datapool):
         self.datapool = datapool
         self.input_id = TestID()
+
+    def init(self):
+        t = Thread(target=self.start_stream, daemon=True)
+        t.start()
 
     def start_stream(self):
         while True:

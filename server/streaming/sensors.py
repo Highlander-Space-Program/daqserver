@@ -17,10 +17,13 @@ class InputId(ABC):
         raise NotImplementedError
 
 
+@dataclass
 class TestID(InputId):
+    sensor_type: str = "Test"
+
     @override
     def to_dict(self) -> dict:
-        return {"test": "test"}
+        return {"sensor_type": self.sensor_type}
 
     @classmethod
     @override
@@ -79,6 +82,12 @@ class DataType(Enum):
 class TimeBasedData:
     time: datetime
     value: float
+
+    def to_dict(self) -> dict:
+        return {
+            "time": self.time.strftime("%Y-%m-%d %H:%M:%S.%f"),
+            "value": self.value,
+        }
 
 
 @dataclass

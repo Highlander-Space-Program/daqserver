@@ -13,3 +13,5 @@ let editingEquationId = null;
 let currentGraphPage = 0;
 const GRAPHS_PER_PAGE = 6;
 
+const chartInstances = {};
+let wsConnection = null;

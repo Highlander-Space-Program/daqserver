@@ -73,7 +73,7 @@ class Datapool:
         Initializes the Datapool with an active asyncio event loop.
         """
         self.loop = loop
-        self.subscribers = defaultdict(list)
+        self.subscribers = defaultdict(set)
 
     def subscribe(self, topic: Topic, callback):
         """
@@ -85,15 +85,16 @@ class Datapool:
                 f"Subscriber callback for '{topic}' must be an async function."
             )
 
-        self.subscribers[topic.value].append(callback)
+        self.subscribers[topic.value].add(callback)
 
     def publish(self, topic: Topic, data: SensorData):
         """
         Synchronously publishes data to a topic.
         Schedules the async subscribers to execute on the provided event loop.
         """
-        if topic not in self.subscribers:
+        if topic.value not in self.subscribers.keys():
             return
 
         for callback in self.subscribers[topic.value]:
-            asyncio.run_coroutine_threadsafe(callback(data), self.loop)
+            # asyncio.run_coroutine_threadsafe(callback(data), self.loop)
+            asyncio.run(callback(data))

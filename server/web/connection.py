@@ -54,4 +54,4 @@ class ConnectionManager:
     async def broadcast(self, topic: str, data: SensorData):
         for ws, topics in self.active_connections.items():
             if topic in topics:
-                await ws.send_json({"topic": topic, "data": data})
+                await ws.send_json({"topic": topic, "payload": data.to_dict()})
