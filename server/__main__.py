@@ -48,8 +48,8 @@ def main():
 
     try:
         asyncio.run(start())
-    except KeyboardInterrupt:
-        pass
+    except Exception as e:
+        print("[Server crash]:", e)
     finally:
         if pool_bridge:
             pool_bridge.shutdown()

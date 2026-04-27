@@ -29,6 +29,9 @@ class PoolBridge:
         # optional tagging rules
         self.TAG_KEYS = {"device", "location", "site"}
 
+        # for shutdown
+        self.shutdown_event = threading.Event()
+
     # ========== START ==========
     def start(self):
         # subscribe to datapool
@@ -54,12 +57,10 @@ class PoolBridge:
             points = self.normalize(data)
 
             with self.batch_lock:
-                self.batch.append(points)
+                self.batch.extend(points)
 
                 if len(self.batch) >= self.BATCH_SIZE:
-                    self.client.write(self.batch)
-                    print(f"[PoolBridge] wrote batch {len(self.batch)}")
-                    self.batch = []
+                    self.flush_batch()
 
         except Exception as e:
             print("[PoolBridge] error:", e)
@@ -102,7 +103,7 @@ class PoolBridge:
 
     # ========== FLUSH LOOP ==========
     def flush_loop(self):
-        while not self.shutdown.is_set():
+        while not self.shutdown_event.is_set():
             time.sleep(self.FLUSH_INTERVAL)
 
             with self.batch_lock:
@@ -115,7 +116,8 @@ class PoolBridge:
         try:
             self.client.write(self.batch)
             print(f"[PoolBridge] wrote {len(self.batch)}")
-            self.batch[]
+            self.batch = []
+
         except Exception as e:
             print("[PoolBridge write error]:", e)
 
@@ -126,7 +128,10 @@ class PoolBridge:
         self.shutdown_event.set()
 
         with self.batch_lock:
-            self.flush_batch()
+            try:            
+                self.flush_batch()
+            except Exception as e:
+                print("[PoolBridge shutdown flush error]:", e)
 
         try:
             self.client.close()
