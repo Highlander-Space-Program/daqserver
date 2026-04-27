@@ -7,8 +7,9 @@ import uvicorn
 from dotenv import load_dotenv
 from server.db.bridge import Bridge
 
-from server.streaming.lj import LabJackTest
-
+from server.streaming.lj import LabjackT7
+from server.streaming.sensors import load_sensors_from_json
+from threading import Thread
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -20,6 +21,17 @@ async def websocket_endpoint(websocket: WebSocket):
 
 async def start():
     loop = asyncio.get_running_loop()
+
+    t7 = LabjackT7(datapool)
+    sensors = load_sensors_from_json("labjack_channels.json", board="T7")
+
+    thread = Thread(
+        target=t7.stream,
+        args=(sensors, loop),
+        daemon=True
+    )
+    thread.start()
+
     config = uvicorn.Config(app, host="0.0.0.0", port=8000)
     server = uvicorn.Server(config)
     await server.serve()
@@ -41,9 +53,6 @@ def main():
         bridge.start()
 
     print(f"influx exists: {influx_exists}")
-
-    ljtest = LabJackTest(datapool)
-    ljtest.init()
 
     try:
         asyncio.run(start())

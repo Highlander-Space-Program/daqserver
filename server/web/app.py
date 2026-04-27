@@ -19,10 +19,10 @@ templates = Jinja2Templates(directory="./server/web/templates")
 datapool = Datapool(asyncio.new_event_loop())
 
 PORT_OPTIONS: dict[str, InputId] = {
-    "PT-1": T7ID(4, 10),
-    "PT-2": T7ID(4, 10),
-    "PT-3": T7ID(4, 10),
-    "TC-1": T7ID(4, 10),
+    "PT-1": T7ID(0, 52),
+    "PT-2": T7ID(1, 60),
+    "PT-3": T7ID(0, 48),
+    "TC-1": T7ID(0, 50),
     "TC-2": T7ID(4, 10),
     "TC-3": T7ID(4, 10),
     "test": TestID(),
@@ -302,7 +302,8 @@ async def websocket_endpoint(websocket: WebSocket):
 
             # TODO: argument counts need to be checked
             if action == "subscribe":
-                manager.subscribe(websocket, *arguments)
+                for sensor in arguments:
+                    manager.subscribe(websocket, sensor)
             elif action == "unsubscribe":
                 manager.unsubscribe(websocket, *arguments)
 
