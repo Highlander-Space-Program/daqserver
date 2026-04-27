@@ -19,10 +19,10 @@ templates = Jinja2Templates(directory="./server/web/templates")
 datapool = Datapool(asyncio.new_event_loop())
 
 PORT_OPTIONS: dict[str, InputId] = {
-    "PT-1": T7ID(4, 10),
-    "PT-2": T7ID(4, 10),
-    "PT-3": T7ID(4, 10),
-    "TC-1": T7ID(4, 10),
+    "PT-1": T7ID(0, 52),
+    "PT-2": T7ID(1, 60),
+    "PT-3": T7ID(0, 48),
+    "TC-1": T7ID(0, 50),
     "TC-2": T7ID(4, 10),
     "TC-3": T7ID(4, 10),
     "test": TestID(),
@@ -103,12 +103,16 @@ async def get_sensors_from_db():
 async def callback(sensor_data: SensorData):
     data = sensor_data.get_data()
 
+    print("Incoming:", data.source.to_dict())
+
     topic = None
     for destination, source in PORT_OPTIONS.items():
+        print("Comparing to:", data.source.to_dict())
         if source == data.source:
             topic = destination
 
     if topic is not None:
+        print("Broadcasting:", topic)
         await manager.broadcast(topic, sensor_data)
 
 

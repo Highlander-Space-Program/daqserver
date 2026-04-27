@@ -16,6 +16,7 @@ from server.streaming.sensors import (
     TestID,
     TimeBasedData,
 )
+from server.streaming.sensors import T7ID
 
 
 def calibration1(voltage):
@@ -108,7 +109,7 @@ def loadcell_voltage_to_lbs_formula(
 # LabJack wrapper
 class Labjack:
     SCAN_RATE_HZ: int = 100
-    SCANS_PER_READ: int = 1
+    SCANS_PER_READ: int = 10
 
     def __init__(self, datapool: Datapool) -> None:
         self.handle = None
@@ -241,33 +242,39 @@ class Labjack:
                 scans = len(data) // num_channels
                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
 
-                packet: dict[str, Any] = {
-                    "device": self.device,
-                    "timestamp": timestamp,
-                    "channels": {},
-                }
-
                 for scan_idx in range(scans):
                     base = scan_idx * num_channels
+
                     for ch_idx, ain in enumerate(channel_names):
                         raw_voltage = data[base + ch_idx]
                         sensor_type = sensor_type_by_ain.get(ain, "")
+
+                        # convert + smooth
                         value = self._convert(raw_voltage, sensor_type, ain)
                         value = self._smooth(ain, value, sensor_type)
-                        packet["channels"][ain] = {
-                            "sensor_type": sensor_type,
-                            "voltage": raw_voltage,
-                            "value": value,
-                        }
 
-                try:
-                    print(packet)
-                    self.datapool.publish(Topic.SENSORDATA, packet)
+                        ain_num = int(ain.replace("AIN", ""))
 
-                except asyncio.QueueFull:
-                    pass
+                        # MUX logic (important)
+                        if ain_num >= 48:
+                            mux_number = (ain_num - 48) // 8
+                        else:
+                            mux_number = 0  
 
-                    # Continue here
+                        input_id = T7ID(mux_number=mux_number, ain=ain_num)
+
+             
+                        st = sensor_type.lower()
+                        if st in ("thermocouple", "tc"):
+                            data_type = DataType.TC
+                        elif st in ("pressure", "pt"):
+                            data_type = DataType.PT
+                        else:
+                            data_type = DataType.TEST
+
+                        sensor_data = LabJackData(input_id, data_type, value)
+
+                        self.datapool.publish(Topic.SENSORDATA, sensor_data)
 
         except KeyboardInterrupt:
             print("Stream interrupted.")
