@@ -1,6 +1,9 @@
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from enum import Enum
 import json
-from typing import List, Optional
+from datetime import datetime
+from typing import List, Optional, Self
 
 
 @dataclass
@@ -8,34 +11,46 @@ class T7ID:
     mux_number: int
     ain: int
 
+
 @dataclass
 class T8ID:
     mux_number: int
     ain: int
 
+
 LabjackID = T7ID | T8ID
+
 
 @dataclass
 class InputId:
     sensor_type: LabjackID
 
 
+class DataType(Enum):
+    TC = "thermocouple"
+    PT = "pressuretransducer"
+
+
 @dataclass
-class ThermocoupleData:
+class TimeBasedData:
+    time: datetime
+    data_type: DataType
     value: float
 
 
-@dataclass
-class PressureTransducerData:
-    value: float
+class SensorData(ABC):
+    @abstractmethod
+    def get_data(self) -> list[TimeBasedData]:
+        raise NotImplementedError()
 
+    @abstractmethod
+    def to_dict(self) -> dict:
+        raise NotImplementedError()
 
-LabjackData = ThermocoupleData | PressureTransducerData
-
-
-@dataclass
-class SersorData:
-    data: LabjackData
+    @classmethod
+    @abstractmethod
+    def from_dict(cls, dictionary: dict) -> Self:
+        raise NotImplementedError()
 
 
 class Sensor:
