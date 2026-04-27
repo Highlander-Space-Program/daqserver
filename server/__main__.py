@@ -50,7 +50,7 @@ async def start():
         print("[Shutdown] cleaning up...")
 
         if pool_bridge:
-            pool_bridge.shutdown()
+            await pool_bridge.shutdown()
         if bridge:
             bridge.shutdown()
 

@@ -30,6 +30,8 @@ class Bridge:
         self.batch = []
         self.batch_lock = threading.Lock()
 
+        self.shutdown_event = threading.Event()
+
         # Keys that should always be tags
         self.TAG_KEYS = {"device", "location", "site"}
 
@@ -88,7 +90,7 @@ class Bridge:
 
     # ========== FLUSH FUNCTION ==========
     def flush_batch(self):
-        while not self.shutdown_event.is_set:
+        while not self.shutdown_event.is_set():
             time.sleep(self.FLUSH_INTERVAL)
 
             with self.batch_lock:
@@ -123,10 +125,21 @@ class Bridge:
 
     # ========== SHUTDOWN FUNCTION ==========
     def shutdown(self):
-        self.shutdown_event.set()
-        self.mqtt_client.loop_stop()
-        self.client.close()
+        print("[Bridge] shutting down...")
 
+        self.shutdown_event.set()
+
+        try:
+            self.mqtt_client.loop_stop()
+        except Exception:
+            pass
+
+        try:        
+            self.client.close()
+        except Exception:
+            pass
+
+        print("[Bridge] shutdown complete")
 
 
 # vim: et:sw=4
