@@ -31,11 +31,10 @@ class PoolBridge:
         # optional tagging rules
         self.TAG_KEYS = {"device", "location", "site"}
 
-        # for shutdown
-        self.shutdown_event = threading.Event()
-
     # ========== START ==========
     def start(self):
+        self.running = True
+
         # subscribe to datapool
         self.datapool.subscribe("SENSORDATA", self.handle_data)
 
@@ -145,15 +144,15 @@ class PoolBridge:
         if self.flush_task:
             self.flush_task.cancel()
             try:            
-                await self.flush_task()
+                await self.flush_task
             except asyncio.CancelledError:
                 pass
 
         # close client
         try:
-            await ayncio.to_thread(self.client.close)
-            except Exception:
-                pass
+            await asyncio.to_thread(self.client.close)
+        except Exception:
+            pass
 
         print("[PoolBridge] shutdown complete")
 
