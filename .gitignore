@@ -7,6 +7,7 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 *.swp
+*.json
 
 daqserver.egg-info/
 daq_ui.db
