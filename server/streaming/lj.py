@@ -1,366 +1,273 @@
-from asyncio import AbstractEventLoop
-from asyncio.queues import Queue
-import time
-from server.streaming.sensors import load_sensors_from_json, Sensor
-
-import csv
+import asyncio
 from datetime import datetime
-from labjack import ljm
-from threading import Lock
-
 from typing import Any
+from collections import deque
+from labjack import ljm
+from server.streaming.sensors import Sensor
+import numpy as np
+from threading import Thread
+from server.pool import Datapool, Topic
 
 
-AIN_TO_CHANNEL = {
-    "AIN52": "tc_1",
-    "AIN51": "tc_2",
-    "AIN48": "lc_1",
-    "AIN21": "lc_2",
-    "AIN50": "pt_1",
-    "AIN10": "pt_2",
-    "AIN6": "pt_3",
-    "AIN7": "flow_1",
-}
+def calibration1(voltage):
+    return 115918.38800425902 * voltage + -3.743950002152496
 
 
-def push_to_pool(category: str, data: Any):
-    pass
+def calibration2(voltage):
+    return 120315.08079063638 * voltage + -4.1362754116597245
 
 
-class LabJackT7:
-    def __init__(self) -> None:
+def calibration3(voltage):
+    return 118278.07807607231 * voltage + 6.439642411975598
+
+
+# Conversion helpers
+def thermocouple_voltage_to_celsius(
+    voltage: float, cj_temp_c: float = 25.0
+) -> float:
+    """K-type thermocouple linear approximation: V → °C."""
+    dT_c = voltage / 0.000041
+    return cj_temp_c + dT_c
+
+
+def loadcell_voltage_to_lbs(voltage: float) -> float:
+    return ((-0.4995 * (voltage * 1e5)) + 0.8905) * 2.20462
+
+
+def pressure_voltage_to_psi(voltage: float) -> float:
+    return ((voltage - 0.5) / 4.0) * 1600
+
+
+def loadcell_voltage_to_lbs_formula(
+    voltage: float,
+    rated_capacity_kg: float,
+    rated_output_mv_per_v: float,  # use 2.0 for 300kg cell, 40.58 for QL-TSC (202.9/5V)
+    excitation_voltage: float,
+    zero_offset_v: float = 0.0,
+) -> float:
+    full_scale_voltage = (rated_output_mv_per_v / 1000.0) * excitation_voltage
+    net_voltage = voltage - zero_offset_v
+    load_kg = (net_voltage / full_scale_voltage) * rated_capacity_kg
+    return load_kg * 2.20462
+
+
+# LabJack wrapper
+class Labjack:
+    SCAN_RATE_HZ: int = 100
+    SCANS_PER_READ: int = 1
+
+    def __init__(self, datapool: Datapool) -> None:
         self.handle = None
+        self.datapool = datapool
+        self._buffers: dict[str, deque] = {}
+        self._tare: dict[str, float] = {}
+        self.device = "UNKNOWN"
 
-    def open(self, connection_type: str):
-        print(f"Opening T7 over {connection_type}...")
-        self.handle = ljm.openS("T7", connection_type, "192.168.1.3")
-        info = ljm.getHandleInfo(self.handle)
+    # Connection
+    def open(self, connection_type: str = "ANY") -> None:
+        raise NotImplementedError()
 
-        print(
-            f"Opened T7: Device type: {info[0]}, "
-            f"Connection type: {info[1]}, Serial: {info[2]}, IP: {info[3]}"
-        )
+    def close(self) -> None:
+        if self.handle is not None:
+            ljm.close(self.handle)
+            self.handle = None
+            print("LabJack closed.")
 
-    def build_scan_list(self, sensors: list[Sensor]):
+    SMOOTHING_WINDOWS = {  # rename to plural + make it a dict
+        "thermocouple": 10,
+        "tc": 10,
+        "load_cell": 50,
+        "loadcell": 50,
+        "lc": 50,
+        "pressure": 20,
+        "pt": 20,
+    }
+
+    # Rolling Average
+    def _smooth(self, ain: str, value: float, sensor_type: str = "") -> float:
+        window = self.SMOOTHING_WINDOWS.get(sensor_type.lower(), 25)
+        if ain not in self._buffers:
+            self._buffers[ain] = deque(
+                [value] * window, maxlen=window
+            )  # create buffer first
+        self._buffers[ain].append(value)
+        avg = sum(self._buffers[ain]) / len(self._buffers[ain])
+        return avg - self._tare.get(ain, 0.0)
+
+    # Tare
+    def tare(self, sensor_type_by_ain: dict[str, str], ain: str = None) -> None:
+        """
+        Tare a specific channel or all channels if ain is None.
+        Call this when no load is applied.
+        """
+        if ain:
+            # Get current average value from buffer as the tare offset
+            if ain in self._buffers:
+                self._tare[ain] = sum(self._buffers[ain]) / len(
+                    self._buffers[ain]
+                )
+                print(f"Tared {ain}: offset = {self._tare[ain]:.4f}")
+        else:
+            # Tare all channels at once
+            for ch, buf in self._buffers.items():
+                sensor_type = sensor_type_by_ain.get(ch, "").lower()
+                if sensor_type == "loadcell":
+                    self._tare[ch] = sum(buf) / len(buf)
+                    print(f"Tared {ch}: offset = {self._tare[ch]:.4f}")
+
+    # Stream setup
+    def _build_scan_list(self, sensors: list[Sensor]):
+        for s in sensors:
+            print(s)
         channel_names = [s.ain for s in sensors]
-        a_addresses, _ = ljm.namesToAddresses(len(channel_names), channel_names)
+        addresses, _ = ljm.namesToAddresses(len(channel_names), channel_names)
+        print("Scan list:")
+        for name, addr in zip(channel_names, addresses):
+            print(f"  {name} -> {addr}")
+        return addresses, channel_names
 
-        print("\nScan list:")
-        for name, addr in zip(channel_names, a_addresses):
-            print(f"  {name} -> address {addr}")
+    def _start_stream(self, scan_list: list, num_channels: int) -> float:
+        ljm.eWriteName(self.handle, "STREAM_RESOLUTION_INDEX", 0)
+        ljm.eWriteName(self.handle, "STREAM_SETTLING_US", 100)
 
-        return a_addresses, len(a_addresses), channel_names
+        # Testing
+        settling = ljm.eReadName(self.handle, "STREAM_SETTLING_US")
+        print(f"Settling time: {settling} µs")
 
-    def configure_stream_params(self):
-        scan_rate_hz = 100
-        scans_per_read = 100
-        return scan_rate_hz, scans_per_read
-
-    def run_stream(
-        self, handle, scan_list, sensors: list[Sensor], channel_names: list[str]
-    ):
-        """save things to csv only"""
-        # global counter
-        scan_rate_hz, scans_per_read = self.configure_stream_params()
-        num_channels = len(channel_names)
-
-        sensor_type_by_name = {s.ain: s.sensor_type for s in sensors}
-
-        print("\nStarting stream:")
-        print(f"  Scan rate:      {scan_rate_hz} Hz")
-        print(f"  Channels:       {channel_names}")
-        print(f"  Scans per read: {scans_per_read}")
-
-        # actual_scan_rate = ljm.eStreamStart(
-        #     handle,
-        #     scans_per_read,
-        #     num_channels,
-        #     scan_list,
-        #     scan_rate_hz,
-        # )
-
-        actual_scan_rate = ljm.eStreamStart(
-            handle,
-            1,
-            num_channels,
-            scan_list,
-            50,
-        )
-
-        print(f"Actual stream scan rate: {actual_scan_rate} Hz")
-        print("\nStreaming... press Ctrl+C to stop.\n")
-
-        print("\n")
-        print("Enter CSV File: ")
-        fileToOpen = input()
-        csvfile = open(f"{fileToOpen}.csv", "w", newline="")
-        writer = csv.DictWriter(
-            csvfile,
-            fieldnames=[
-                "device",
-                "ain",
-                "sensor",
-                "voltage",
-                "measurement",
-                "timestamp",
-            ],
-        )
-        writer.writeheader()
-
-        try:
-            while True:
-                data, device_backlog, ljm_backlog = ljm.eStreamRead(handle)
-                # counter += 1
-                scans = len(data) // num_channels
-
-                for scan_idx in range(scans):
-                    base = scan_idx * num_channels
-                    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[
-                        :-3
-                    ]
-
-                    for ch_idx, ain_name in enumerate(channel_names):
-                        value = data[base + ch_idx]
-
-                        row = {
-                            "device": "T7",
-                            "ain": ain_name,
-                            "sensor": sensor_type_by_name.get(ain_name),
-                            "voltage": value,
-                            "measurement": "sensor_data",
-                            "timestamp": timestamp,
-                        }
-
-                        # Write to CSV (already doing this)
-                        writer.writerow(row)
-
-                        # Update live data for dashboard
-                        with live_data_lock:
-                            live_data[ain_name] = row
-
-                if scans > 0:
-                    # print(
-                    #     f"# scans: {scans}, deviceBacklog: {device_backlog}, "
-                    #     f"LJMBacklog: {ljm_backlog}"
-                    # )
-                    pass
-
-        except KeyboardInterrupt:
-            print("\nStopping stream (Ctrl+C detected)...")
-
-        finally:
-            csvfile.close()
-            ljm.eStreamStop(handle)
-            ljm.close(handle)
-            print("Stream stopped and device closed.")
-
-    def stream_to(self, sensors: list[Sensor]):
-        # Map your AIN channels to dashboard channel names
-
-        scan_list, num_channels, channel_names = self.build_scan_list(sensors)
-        scan_rate_hz, scans_per_read = self.configure_stream_params()
-        num_channels = len(channel_names)
-
-        sensor_type_by_name = {s.ain: s.sensor_type for s in sensors}
-
-        print("\nStarting stream:")
-        print(f"  Scan rate:      {scan_rate_hz} Hz")
-        print(f"  Channels:       {channel_names}")
-        print(f"  Scans per read: {scans_per_read}")
-
-        # actual_scan_rate = ljm.eStreamStart(
-        #     handle,
-        #     scans_per_read,
-        #     num_channels,
-        #     scan_list,
-        #     scan_rate_hz,
-        # )
-
-        actual_scan_rate = ljm.eStreamStart(
+        actual_rate = ljm.eStreamStart(
             self.handle,
-            1,
+            self.SCANS_PER_READ,
             num_channels,
             scan_list,
-            100,
+            self.SCAN_RATE_HZ,
         )
+        print(f"Stream started at {actual_rate:.1f} Hz")
+        return actual_rate
 
-        print(f"Actual stream scan rate: {actual_scan_rate} Hz")
-        print("\nStreaming... press Ctrl+C to stop.\n")
+    def not_blocking_streaming():
+        raise NotImplementedError
 
-        output = [0] * 50
-        i = 0
+    # Streaming -> datapool
+    def stream(
+        self,
+        sensors: list[Sensor],
+        loop: asyncio.AbstractEventLoop,
+    ) -> None:
+        """
+        Read from the LabJack in a blocking loop and push converted sensor
+        readings into *queue* so the FastAPI WebSocket handler can forward
+        them to connected browsers.
 
+        Run this in a background thread via loop.run_in_executor() so it
+        does not block the asyncio event loop.
+        """
+        self.open("Ethernet")
+        for s in sensors:
+            s.configure_labjack(ljm, self)
+
+        scan_list, channel_names = self._build_scan_list(sensors)
+        num_channels = len(channel_names)
+        sensor_type_by_ain = {s.ain: s.sensor_type for s in sensors}
+
+        self._start_stream(scan_list, num_channels)
+
+        # Warm up
+        for _ in range(50):
+            data, _, _ = ljm.eStreamRead(self.handle)
+            for ch_idx, ain in enumerate(channel_names):
+                raw_voltage = data[ch_idx]
+                sensor_type = sensor_type_by_ain[ain]
+                value = self._convert(raw_voltage, sensor_type, ain)
+                self._smooth(ain, value, sensor_type)
+
+        print("Streaming - press Ctrl+C to stop.")
         try:
             while True:
                 data, device_backlog, ljm_backlog = ljm.eStreamRead(self.handle)
-                # counter += 1
                 scans = len(data) // num_channels
+                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+
+                packet: dict[str, Any] = {
+                    "device": self.device,
+                    "timestamp": timestamp,
+                    "channels": {},
+                }
 
                 for scan_idx in range(scans):
                     base = scan_idx * num_channels
-                    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[
-                        :-3
-                    ]
-
-                    for ch_idx, ain_name in enumerate(channel_names):
-                        value = data[base + ch_idx]
-
-                        row = {
-                            "device": "T7",
-                            "ain": ain_name,
-                            "sensor": sensor_type_by_name.get(ain_name),
-                            "voltage": value,
-                            "measurement": "sensor_data",
-                            "timestamp": timestamp,
+                    for ch_idx, ain in enumerate(channel_names):
+                        raw_voltage = data[base + ch_idx]
+                        sensor_type = sensor_type_by_ain.get(ain, "")
+                        value = self._convert(raw_voltage, sensor_type, ain)
+                        value = self._smooth(ain, value, sensor_type)
+                        packet["channels"][ain] = {
+                            "sensor_type": sensor_type,
+                            "voltage": raw_voltage,
+                            "value": value,
                         }
 
-                        output[i % len(output)] = value
-                        value = sum(output) / len(output)
-                        print(value)
+                try:
+                    print(packet)
+                    self.datapool.publish(Topic.SENSORDATA, packet)
 
-                        i += 1
-
-                if scans > 0:
-                    # print(
-                    #     f"# scans: {scans}, deviceBacklog: {device_backlog}, "
-                    #     f"LJMBacklog: {ljm_backlog}"
-                    # )
+                except asyncio.QueueFull:
                     pass
 
-        except KeyboardInterrupt:
-            print("\nStopping stream (Ctrl+C detected)...")
+                    # Continue here
 
+        except KeyboardInterrupt:
+            print("Stream interrupted.")
         finally:
             ljm.eStreamStop(self.handle)
-            ljm.close(self.handle)
-            print("Stream stopped and device closed.")
+            print("Stream stopped.")
 
-        # output = [0] * 50
-        # i = 0
-
-        # live_data = {}
-
-        # while True:
-
-        #     if data_copy:
-        #         dash_packet = {
-        #             "timestamp": time.time(),
-        #             "board_id": "labjack",
-        #             "channels": {},
-        #         }
-
-        #         # Precompute totals FIRST
-        #         total_loadcell_voltage = sum(
-        #             row["voltage"]
-        #             for row in data_copy.values()
-        #             if row["sensor"] == "LoadCell"
-        #         )
-
-        #         total_loadcell_lbs = total_loadcell_voltage_to_lbs(
-        #             total_loadcell_voltage
-        #         )
-
-        #         for ain_name, row in data_copy.items():
-        #             dash_name = AIN_TO_CHANNEL.get(ain_name)
-        #             if dash_name:
-        #                 value = row["voltage"]
-
-        #                 if row["sensor"] == "Thermocouple":
-        #                     value = thermocouple_voltage_to_temperature(value)
-        #                 elif row["sensor"] == "Pressure":
-        #                     value = pressure_voltage_to_psi(value)
-        #                 elif row["sensor"] == "LoadCell":
-        #                     # value = calibration(value)
-        #                     value = loadcell_voltage_to_lbs(value)
-        #                     output[i % len(output)] = value
-        #                     i += 1
-        #                     value = sum(output) / len(output)
-
-        #                 dash_packet["channels"][dash_name] = value
-
-        #         # Send to all connected browsers
-        #         # socketio.emit("sensor_data", dash_packet)
-        #         # Thread-safe way to put data into asyncio queue
-        #         print(dash_packet)
-
-        #     time.sleep(0.05)  # ~20 Hz update rate
+    # Unit conversion dispatch
+    @staticmethod
+    def _convert(voltage: float, sensor_type: str, ain: str) -> float:
+        sensor_type = (sensor_type or "").lower()
+        if sensor_type in ("thermocouple", "tc"):
+            return thermocouple_voltage_to_celsius(voltage)
+        if sensor_type in ("load_cell", "loadcell", "lc"):
+            if ain == "AIN0":
+                return calibration1(voltage)
+            if ain == "AIN2":
+                return calibration2(voltage)
+            if ain == "AIN3":
+                return calibration3(voltage)
+            # return loadcell_voltage_to_lbs_formula(voltage, 1000, 2, 5)
+        if sensor_type in ("pressure", "pt"):
+            return pressure_voltage_to_psi(voltage)
+        return voltage  # raw voltage fallback
 
 
-# def thermocouple_voltage_to_temperature(thermo_voltage, cj_temp_c):
-#     """
-#     Convert thermocouple voltage (in volts) to temperature in °F.
-#
-#     This uses a simple linear approximation:
-#       - K-type thermocouple sensitivity is approximately 41 µV/°C.
-#       - dT (°C) = thermo_voltage (V) / 0.000041
-#       - Thermocouple temperature (°C) = Cold Junction Temperature (°C) + dT
-#       - Then convert °C to °F.
-#
-#     Note: This linear approximation is valid only over a narrow temperature range.
-#     """
-#     # Calculate the temperature difference from the thermocouple voltage
-#     dT_c = thermo_voltage / 0.000041  # in °C
-#     tc_temp_c = cj_temp_c + dT_c  # thermocouple temperature in °C
-#     tc_temp_f = (tc_temp_c * 9 / 5) + 32  # convert °C to °F
-#     return tc_temp_f
-#
+class LabjackT8(Labjack):
+    def __init__(self, datapool: Datapool) -> None:
+        super().__init__(datapool)
+        self.device = "T8"
+
+    def open(self, connection_type: str = "ANY") -> None:
+        print(f"Opening T8 over {connection_type}...")
+        self.handle = ljm.openS("T8", connection_type, "192.168.1.208")
+        info = ljm.getHandleInfo(self.handle)
+        print(
+            f"Opened T8 — device: {info[0]}, connection: {info[1]}, "
+            f"serial: {info[2]}, IP: {info[3]}"
+        )
 
 
-# --- Conversion functions ---
-def thermocouple_voltage_to_temperature(
-    voltage, cj_temp_c=25.0
-):  # Also potentially wrong equation
-    """Convert thermocouple voltage (V) to °F using same formula as streaming.py"""
-    dT_c = voltage / 0.000041  # in °C
-    tc_temp_c = cj_temp_c + dT_c  # thermocouple temperature in °C
-    return tc_temp_c
+class LabjackT7(Labjack):
+    def __init__(self, datapool: Datapool) -> None:
+        super().__init__(datapool)
+        self.device = "T7"
 
+    def open(self, connection_type: str = "ANY") -> None:
+        print(f"Opening T7 over {connection_type}...")
+        self.handle = ljm.openS("T7", connection_type, "192.168.1.3")
 
-def loadcell_voltage_to_lbs(voltage):
-    # return (0.5104 * (voltage*pow(10,5))) * 2.20462
-    return ((-0.4995 * (voltage * pow(10, 5))) + 0.8905) * 2.20462
+        print("LabJack state reset.")
 
-
-def total_loadcell_voltage_to_lbs(voltage):
-    return ((-0.4995 * (voltage * pow(10, 5))) + 0.8905) * 2.20462
-
-
-def pressure_voltage_to_psi(voltage):
-    return ((voltage - 0.5) / (4.0)) * 1600
-
-
-def calibration(voltage):
-    max_load = 1102.31  # lbs
-    sens = 2.0  # mV / V
-    excitation_voltage = 5.0  # V
-
-    full_scale_voltage = sens * excitation_voltage / 1000
-
-    return -1 * (max_load / full_scale_voltage) * voltage
-
-
-# Background thread to push live data to the dashboard
-
-
-def main():
-    sensors = load_sensors_from_json("labjack_channels.json")
-    print(sensors)
-    if not sensors:
-        print("No sensors found in JSON config. Exiting.")
-        return
-
-    t7 = LabJackT7()
-    t7.open("ANY")
-
-    for s in sensors:
-        s.configure_labjack(ljm, t7)
-
-    t7.stream_to(sensors)
-
-    # scan_list, num_channels, channel_names = build_scan_list(sensors)
-
-    # run_stream(handle, scan_list, sensors, channel_names)
-
-
-if __name__ == "__main__":
-    main()
+        info = ljm.getHandleInfo(self.handle)
+        print(
+            f"Opened T7 — device: {info[0]}, connection: {info[1]}, "
+            f"serial: {info[2]}, IP: {info[3]}"
+        )

@@ -7,7 +7,7 @@ from server.pool import Datapool, Topic
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from labjack import ljm
 
-from ljTest import LabjackT7, LabjackT8
+from lj import LabjackT7, LabjackT8
 from sensors import load_sensors_from_json
 from threading import Thread
 
@@ -20,37 +20,34 @@ executor = ThreadPoolExecutor(max_workers=1)
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
     t7_sensors = load_sensors_from_json("labjack_channels.json", board="T7")
-    t8_sensors = load_sensors_from_json("labjack_channels.json", board="T8")
-    
+    # t8_sensors = load_sensors_from_json("labjack_channels.json", board="T8")
+
     loop = asyncio.get_event_loop()
     datapool = Datapool(loop)
 
     app.state.datapool = datapool
 
     t7 = LabjackT7(datapool)
-    t8 = LabjackT8(datapool)
+    # t8 = LabjackT8(datapool)
 
-    thread_t7 = Thread(
-        target=t7.stream,
-        args=(t7_sensors, loop),
-        daemon=True
-    )
+    thread_t7 = Thread(target=t7.stream, args=(t7_sensors, loop), daemon=True)
 
-    thread_t8 = Thread(
-        target=t8.stream,
-        args=(t8_sensors, loop),
-        daemon=True
-    )
+    # thread_t8 = Thread(
+    #     target=t8.stream,
+    #     args=(t8_sensors, loop),
+    #     daemon=True
+    # )
 
     thread_t7.start()
-    thread_t8.start()
+    # thread_t8.start()
 
     yield  # app runs here
 
     # --- shutdown ---
     executor.shutdown(wait=False)
     t7.close()
-    t8.close()
+    # t8.close()
+
 
 # App
 app = FastAPI(lifespan=lifespan)

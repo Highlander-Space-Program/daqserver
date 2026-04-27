@@ -33,8 +33,10 @@ def main():
     influx_exists = all([influx_url, influx_token, influx_database, mqtt_host])
 
     if influx_exists:
-       bridge = Bridge(influx_url, influx_token, influx_database, mqtt_host, mqtt_port)
-       bridge.start()
+        bridge = Bridge(
+            influx_url, influx_token, influx_database, mqtt_host, mqtt_port
+        )
+        bridge.start()
 
     print(f"influx exists: {influx_exists}")
 
