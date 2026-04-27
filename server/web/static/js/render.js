@@ -3,81 +3,85 @@ const leftScrollList = document.getElementById("left-scroll-list");
 const leftListTitle = document.getElementById("left-list-title");
 
 function renderAll() {
-    renderStats();
-    renderPortOptions();
-    renderEquationOptions();
-    renderGraphSensorOptions();
-    renderLeftPanel();
-    renderGraphs();
+  renderStats();
+  renderPortOptions();
+  renderEquationOptions();
+  renderGraphSensorOptions();
+  renderLeftPanel();
+  renderGraphs();
 }
 
 function renderStats() {
-    document.getElementById("read-rate").textContent =
-        backendConfig.read_rate_hz === "--" ? "-- Hz" : `${backendConfig.read_rate_hz} Hz`;
+  document.getElementById("read-rate").textContent =
+    backendConfig.read_rate_hz === "--"
+      ? "-- Hz"
+      : `${backendConfig.read_rate_hz} Hz`;
 
-    document.getElementById("active-graphs").textContent =
-        backendConfig.graphs.length;
+  document.getElementById("active-graphs").textContent =
+    backendConfig.graphs.length;
 }
 
 function renderPortOptions() {
-    const sensorPortInput = document.getElementById("sensor-port-input");
-    sensorPortInput.innerHTML = "";
+  const sensorPortInput = document.getElementById("sensor-port-input");
+  sensorPortInput.innerHTML = "";
 
-    backendConfig.ports.forEach(port => {
-        const option = document.createElement("option");
-        option.value = port;
-        option.textContent = port;
-        sensorPortInput.appendChild(option);
-    });
+  backendConfig.ports.forEach((port) => {
+    const option = document.createElement("option");
+    option.value = port;
+    option.textContent = port;
+    sensorPortInput.appendChild(option);
+  });
 }
 
 function renderEquationOptions() {
-    const sensorEquationInput = document.getElementById("sensor-equation-input");
-    sensorEquationInput.innerHTML = "";
+  const sensorEquationInput = document.getElementById("sensor-equation-input");
+  sensorEquationInput.innerHTML = "";
 
-    const none = document.createElement("option");
-    none.value = "";
-    none.textContent = "No equation";
-    sensorEquationInput.appendChild(none);
+  const none = document.createElement("option");
+  none.value = "";
+  none.textContent = "No equation";
+  sensorEquationInput.appendChild(none);
 
-    backendConfig.equations.forEach(eq => {
-        const option = document.createElement("option");
-        option.value = eq.id;
-        option.textContent = eq.name;
-        sensorEquationInput.appendChild(option);
-    });
+  backendConfig.equations.forEach((eq) => {
+    const option = document.createElement("option");
+    option.value = eq.id;
+    option.textContent = eq.name;
+    sensorEquationInput.appendChild(option);
+  });
 }
 
 function renderGraphSensorOptions() {
-    const graphSensorInput = document.getElementById("graph-sensor-input");
-    graphSensorInput.innerHTML = "";
+  const graphSensorInput = document.getElementById("graph-sensor-input");
+  graphSensorInput.innerHTML = "";
 
-    backendConfig.sensors.forEach(sensor => {
-        const option = document.createElement("option");
-        option.value = sensor.id;
-        option.textContent = `${sensor.name} (${sensor.port})`;
-        graphSensorInput.appendChild(option);
-    });
+  backendConfig.sensors.forEach((sensor) => {
+    const option = document.createElement("option");
+    option.value = sensor.id;
+    option.textContent = `${sensor.name} (${sensor.port})`;
+    graphSensorInput.appendChild(option);
+  });
 }
 
 function renderLeftPanel() {
-    leftScrollList.innerHTML = "";
+  leftScrollList.innerHTML = "";
 
-    if (activeLeftTab === "sensors") {
-        leftListTitle.textContent = "Active Sensors";
+  if (activeLeftTab === "sensors") {
+    leftListTitle.textContent = "Active Sensors";
 
-        if (backendConfig.sensors.length === 0) {
-            leftScrollList.innerHTML = `<div class="empty-small">No sensors yet.</div>`;
-            return;
-        }
+    if (backendConfig.sensors.length === 0) {
+      leftScrollList.innerHTML = `<div class="empty-small">No sensors yet.</div>`;
+      return;
+    }
 
-        backendConfig.sensors.forEach(sensor => {
-            const eq = backendConfig.equations.find(e => e.id === sensor.equation_id);
+    backendConfig.sensors.forEach((sensor) => {
+      const eq = backendConfig.equations.find(
+        (e) => e.id === sensor.equation_id,
+      );
 
-            const div = document.createElement("div");
-            div.className = "left-item";
+      const div = document.createElement("div");
+      div.className = "left-item";
 
-            div.innerHTML = `
+      div.innerHTML = `
                 <div>
                     <strong>${sensor.name}</strong>
                     <small>${sensor.port} • ${eq ? eq.name : "No equation"}</small>
@@ -88,30 +92,31 @@ function renderLeftPanel() {
                 </div>
             `;
 
-            div.querySelector(".edit-btn").onclick = () => openEditSensor(sensor);
-            div.querySelector(".delete-btn").onclick = () => deleteSensor(sensor.id);
+      div.querySelector(".edit-btn").onclick = () => openEditSensor(sensor);
+      div.querySelector(".delete-btn").onclick = () => deleteSensor(sensor.id);
 
-            leftScrollList.appendChild(div);
-        });
+      leftScrollList.appendChild(div);
+    });
+  }
+  if (activeLeftTab === "equations") {
+    leftListTitle.textContent = "Saved Equations";
+
+    if (backendConfig.equations.length === 0) {
+      leftScrollList.innerHTML = `<div class="empty-small">No equations yet.</div>`;
+      return;
     }
-    if (activeLeftTab === "equations") {
-        leftListTitle.textContent = "Saved Equations";
 
-        if (backendConfig.equations.length === 0) {
-            leftScrollList.innerHTML = `<div class="empty-small">No equations yet.</div>`;
-            return;
-        }
+    backendConfig.equations.forEach((eq) => {
+      const usedBy =
+        backendConfig.sensors
+          .filter((s) => s.equation_id === eq.id)
+          .map((s) => s.name)
+          .join(", ") || "No sensors";
 
-        backendConfig.equations.forEach(eq => {
-            const usedBy = backendConfig.sensors
-                .filter(s => s.equation_id === eq.id)
-                .map(s => s.name)
-                .join(", ") || "No sensors";
+      const div = document.createElement("div");
+      div.className = "left-item";
 
-            const div = document.createElement("div");
-            div.className = "left-item";
-
-            div.innerHTML = `
+      div.innerHTML = `
                 <div>
                     <strong>${eq.name}</strong>
                     <small>Used by: ${usedBy}</small>
@@ -122,32 +127,35 @@ function renderLeftPanel() {
                 </div>
             `;
 
-            div.querySelector(".edit-btn").onclick = () => openEditEquation(eq);
-            div.querySelector(".delete-btn").onclick = () => deleteEquation(eq.id);
+      div.querySelector(".edit-btn").onclick = () => openEditEquation(eq);
+      div.querySelector(".delete-btn").onclick = () => deleteEquation(eq.id);
 
-            leftScrollList.appendChild(div);
-        });
-    }
+      leftScrollList.appendChild(div);
+    });
+  }
 }
 
 function renderGraphs() {
-    dashboardGrid.innerHTML = "";
+  dashboardGrid.innerHTML = "";
 
-    const totalPages = Math.max(1, Math.ceil(backendConfig.graphs.length / GRAPHS_PER_PAGE));
-    if (currentGraphPage >= totalPages) currentGraphPage = totalPages - 1;
+  const totalPages = Math.max(
+    1,
+    Math.ceil(backendConfig.graphs.length / GRAPHS_PER_PAGE),
+  );
+  if (currentGraphPage >= totalPages) currentGraphPage = totalPages - 1;
 
-    const start = currentGraphPage * GRAPHS_PER_PAGE;
-    const pageGraphs = backendConfig.graphs.slice(start, start + GRAPHS_PER_PAGE);
+  const start = currentGraphPage * GRAPHS_PER_PAGE;
+  const pageGraphs = backendConfig.graphs.slice(start, start + GRAPHS_PER_PAGE);
 
-    pageGraphs.forEach(graph => {
-        const sensor = backendConfig.sensors.find(s => s.id === graph.sensor_id);
+  pageGraphs.forEach((graph) => {
+    const sensor = backendConfig.sensors.find((s) => s.id === graph.sensor_id);
 
-        const panel = document.createElement("div");
-        panel.className = "graph-panel";
+    const panel = document.createElement("div");
+    panel.className = "graph-panel";
 
-        const canvasId = `chart-${graph.id}`;
+    const canvasId = `chart-${graph.id}`;
 
-        panel.innerHTML = `
+    panel.innerHTML = `
             <div class="graph-top">
                 <div>
                     <div class="graph-title">${graph.name}</div>
@@ -159,21 +167,22 @@ function renderGraphs() {
             </div>
         `;
 
-        dashboardGrid.appendChild(panel);
-        buildBlankChart(canvasId, graph.name);
-    });
+    dashboardGrid.appendChild(panel);
+    buildBlankChart(canvasId, graph.name, graph.id);
+  });
 
-    while (dashboardGrid.children.length < GRAPHS_PER_PAGE) {
-        const skeleton = document.createElement("button");
-        skeleton.className = "graph-panel skeleton-graph";
-        skeleton.innerHTML = `
+  while (dashboardGrid.children.length < GRAPHS_PER_PAGE) {
+    const skeleton = document.createElement("button");
+    skeleton.className = "graph-panel skeleton-graph";
+    skeleton.innerHTML = `
             <div class="plus">+</div>
             <div>Add Graph</div>
         `;
-        skeleton.onclick = openGraphModal;
-        dashboardGrid.appendChild(skeleton);
-    }
+    skeleton.onclick = openGraphModal;
+    dashboardGrid.appendChild(skeleton);
+  }
 
-    document.getElementById("graph-page-label").textContent =
-        `Page ${currentGraphPage + 1} of ${totalPages}`;
+  document.getElementById("graph-page-label").textContent =
+    `Page ${currentGraphPage + 1} of ${totalPages}`;
 }
+
