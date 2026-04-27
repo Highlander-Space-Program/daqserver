@@ -88,7 +88,7 @@ class Bridge:
 
     # ========== FLUSH FUNCTION ==========
     def flush_batch(self):
-        while True:
+        while not self.shutdown_event.is_set:
             time.sleep(self.FLUSH_INTERVAL)
 
             with self.batch_lock:
@@ -120,6 +120,13 @@ class Bridge:
 
         except Exception as e:
             print("Message error:", e)
+
+    # ========== SHUTDOWN FUNCTION ==========
+    def shutdown(self):
+        self.shutdown_event.set()
+        self.mqtt_client.loop_stop()
+        self.client.close()
+
 
 
 # vim: et:sw=4
