@@ -6,6 +6,10 @@ from datetime import datetime
 from typing import List, Optional, Self
 
 
+class TestID:
+    pass
+
+
 class T7ID:
     mux_number: int
     ain: int
@@ -17,29 +21,36 @@ class T8ID:
     ain: int
 
 
-LabjackID = T7ID | T8ID
+LabjackID = T7ID | T8ID | TestID
 
 
 @dataclass
 class InputId:
-    sensor_type: LabjackID
+    value: LabjackID
 
 
 class DataType(Enum):
     TC = "thermocouple"
     PT = "pressuretransducer"
+    TEST = "test"
 
 
 @dataclass
 class TimeBasedData:
     time: datetime
-    data_type: DataType
     value: float
+
+
+@dataclass
+class SensorOutput:
+    data_type: DataType
+    source: InputId
+    data: list[TimeBasedData]
 
 
 class SensorData(ABC):
     @abstractmethod
-    def get_data(self) -> list[TimeBasedData]:
+    def get_data(self) -> SensorOutput:
         raise NotImplementedError()
 
     @abstractmethod

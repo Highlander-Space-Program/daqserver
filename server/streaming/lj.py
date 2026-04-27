@@ -1,12 +1,20 @@
 import asyncio
+import random
+import time
 from datetime import datetime
-from typing import Any
+from typing import Any, Self, override
 from collections import deque
 from labjack import ljm
 from server.streaming.sensors import Sensor
-import numpy as np
-from threading import Thread
 from server.pool import Datapool, Topic
+from server.streaming.sensors import (
+    DataType,
+    InputId,
+    SensorData,
+    SensorOutput,
+    TestID,
+    TimeBasedData,
+)
 
 
 def calibration1(voltage):
@@ -19,6 +27,43 @@ def calibration2(voltage):
 
 def calibration3(voltage):
     return 118278.07807607231 * voltage + 6.439642411975598
+
+
+class LabJackData(SensorData):
+    def __init__(self, input_id: InputId, data_type: DataType, value: float):
+        self.data = TimeBasedData(datetime.now(), value)
+        self.data_type = data_type
+        self.input_id = input_id
+
+    @override
+    def get_data(self) -> SensorOutput:
+        return SensorOutput(
+            self.data_type,
+            self.input_id,
+            [self.data],
+        )
+
+    @override
+    def to_dict(self) -> dict:
+        raise NotImplementedError()
+
+    @classmethod
+    @override
+    def from_dict(cls, dictionary: dict) -> Self:
+        raise NotImplementedError()
+
+
+class LabJackTest:
+    def __init__(self, datapool: Datapool):
+        self.datapool = datapool
+        self.input_id = InputId(TestID())
+
+    def start_stream(self):
+        while True:
+            value = random.random()
+            fake_data = LabJackData(self.input_id, DataType.TEST, value)
+            self.datapool.publish(Topic.SENSORDATA, fake_data)
+            time.sleep(0.1)
 
 
 # Conversion helpers
@@ -95,7 +140,7 @@ class Labjack:
         return avg - self._tare.get(ain, 0.0)
 
     # Tare
-    def tare(self, sensor_type_by_ain: dict[str, str], ain: str = None) -> None:
+    def tare(self, sensor_type_by_ain: dict[str, str], ain: str = "") -> None:
         """
         Tare a specific channel or all channels if ain is None.
         Call this when no load is applied.
@@ -144,7 +189,7 @@ class Labjack:
         print(f"Stream started at {actual_rate:.1f} Hz")
         return actual_rate
 
-    def not_blocking_streaming():
+    def not_blocking_streaming(self):
         raise NotImplementedError
 
     # Streaming -> datapool
