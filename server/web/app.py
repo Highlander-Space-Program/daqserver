@@ -117,8 +117,6 @@ async def get_graphs_from_db():
 async def callback(sensor_data: SensorData):
     data = sensor_data.get_data()
 
-    
-
     topic = None
     for destination, source in PORT_OPTIONS.items():
         if source == data.source:
@@ -304,9 +302,8 @@ async def websocket_endpoint(websocket: WebSocket):
 
             # TODO: argument counts need to be checked
             if action == "subscribe":
-                print(arguments)
-                breakpoint()
-                manager.subscribe(websocket, *arguments)
+                for sensor in arguments:
+                    manager.subscribe(websocket, sensor)
             elif action == "unsubscribe":
                 manager.unsubscribe(websocket, *arguments)
 

@@ -108,8 +108,8 @@ def loadcell_voltage_to_lbs_formula(
 
 # LabJack wrapper
 class Labjack:
-    SCAN_RATE_HZ: int = 100
-    SCANS_PER_READ: int = 10
+    SCAN_RATE_HZ: int = 10
+    SCANS_PER_READ: int = 1
 
     def __init__(self, datapool: Datapool) -> None:
         self.handle = None
