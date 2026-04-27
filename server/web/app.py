@@ -68,6 +68,13 @@ async def init_db():
                 equation_id TEXT
             )
         """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS graphs (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                sensor_id TEXT NOT NULL
+            )
+        """)
 
         await db.commit()
 
@@ -98,6 +105,13 @@ async def get_sensors_from_db():
         }
         for row in rows
     ]
+
+
+async def get_graphs_from_db():
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT id, name, sensor_id FROM graphs") as cursor:
+            rows = await cursor.fetchall()
+    return [{"id": row[0], "name": row[1], "sensor_id": row[2]} for row in rows]
 
 
 async def callback(sensor_data: SensorData):
@@ -139,13 +153,14 @@ async def cameras_page(request: Request):
 
 @app.get("/api/config")
 async def api_config():
+    graphs_list = await get_graphs_from_db()
     return {
         "ports": list(PORT_OPTIONS.keys()),
         "equations": await get_equations_from_db(),
         "sensors": await get_sensors_from_db(),
-        "graphs": list(graphs.values()),
+        "graphs": graphs_list,
         "read_rate_hz": "--",
-        "active_graphs": len(graphs),
+        "active_graphs": len(graphs_list),
     }
 
 
@@ -242,15 +257,23 @@ async def edit_sensor(sensor_id: str, payload: SensorPayload):
 
 
 @app.post("/api/graphs")
-def add_graph(payload: GraphPayload):
+async def add_graph(payload: GraphPayload):
     graph_id = str(uuid4())
-    graph = {
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            """
+            INSERT INTO graphs (id, name, sensor_id)
+            VALUES (?, ?, ?)
+            """,
+            (graph_id, payload.name, payload.sensor_id),
+        )
+        await db.commit()
+
+    return {
         "id": graph_id,
         "name": payload.name,
         "sensor_id": payload.sensor_id,
     }
-    graphs[graph_id] = graph
-    return graph
 
 
 @app.get("/api/latest")
@@ -321,6 +344,11 @@ async def delete_sensor(sensor_id: str):
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute(
             "DELETE FROM sensors WHERE id = ?",
+            (sensor_id,),
+        )
+        # Delete connected graphs from DB
+        await db.execute(
+            "DELETE FROM graphs WHERE sensor_id = ?",
             (sensor_id,),
         )
         await db.commit()
