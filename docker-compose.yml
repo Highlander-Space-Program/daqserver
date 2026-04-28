@@ -27,7 +27,7 @@ services:
     image: influxdata/influxdb3-ui:latest
     container_name: influxdb3-ui
     ports:
-      - "8888:80" # Access via http://localhost:8888
+      - "8080:8080" # Access via http://localhost:8888
     environment:
       INFLUXDB_URL: http://influxdb3-core:8181
       INFLUXDB_TOKEN: ${INFLUXDB_TOKEN} # Make sure you export this env var before 'docker-compose up'

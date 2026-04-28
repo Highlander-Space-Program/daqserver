@@ -1,7 +1,6 @@
-import threading
-import time
 import asyncio
 from influxdb_client_3 import InfluxDBClient3, Point
+from server.pool import Topic
 
 
 class PoolBridge:
@@ -43,7 +42,7 @@ class PoolBridge:
         self.running = True
 
         # subscribe to datapool
-        self.datapool.subscribe("SENSORDATA", self.handle_data)
+        self.datapool.subscribe(Topic.SENSORDATA, self.handle_data)
 
         # start async flush loop
         loop = asyncio.get_running_loop()
@@ -52,7 +51,7 @@ class PoolBridge:
         print("PoolBridge started")
 
     # ========== CALLBACK (ASYNC) ==========
-    def handle_data(self, data):
+    async def handle_data(self, data):
         """
         Receives datapool events (async callback)
         Converts to Influx Point
@@ -90,11 +89,6 @@ class PoolBridge:
         raise ValueError(f"Unsupported datapool format: {type(data)}")
 
     # ========== MORE DATA HANDLING ==========
-    def get_measurement(self, name: str | None, fallback="sensor"):
-        if not name:
-            return fallback
-        return str(name).lower()
-
     def get_measurement(self, name: str | None, fallback="sensor"):
         if not name:
             return fallback
@@ -150,7 +144,7 @@ class PoolBridge:
             self.apply_identity_tags(point, source)
             point.tag("data_type", measurement)
 
-            point.fielt("value", entry.value)
+            point.field("value", entry.value)
             point.time(entry.time)
 
             points.append(point)
@@ -163,6 +157,18 @@ class PoolBridge:
                 point.time(t)
         except Exception:
             pass
+
+    def apply_identity_tags(self, point, tags: dict):
+        """
+        Applies a dictionary of tags to an InfluxDB Point.
+        Filters out None values and casts all tag values to strings.
+        """
+        if not tags or not isinstance(tags, dict):
+            return
+
+        for key, value in tags.items():
+            if value is not None:
+                point.tag(str(key), str(value))
 
     # ========== POINT BUILDER ==========
     def build_point(self, payload):
