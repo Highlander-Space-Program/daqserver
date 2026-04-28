@@ -3,7 +3,7 @@ import asyncio
 import uvicorn
 from dotenv import load_dotenv
 
-from server.db.influx import init_influx
+from server.db.influx import init_influx, shutdown_influx
 from server.pool import Datapool
 from server.streaming.stream import init_streaming
 from server.web.app import app, init_db
@@ -20,7 +20,12 @@ async def start():
     logger.info("Listening on http://localhost:8000")
     config = uvicorn.Config(app, host="0.0.0.0", port=8000)
     server = uvicorn.Server(config)
-    await server.serve()
+
+    try:
+        await server.serve()
+    finally:
+        logger.info("[Shutdown] cleaning up...")
+        await shutdown_influx()
 
 
 def main():

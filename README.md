@@ -4,18 +4,23 @@ The main DAQ server repo.
 
 ## Running this project
 
-1. Download the command [`uv`](https://docs.astral.sh/uv/getting-started/installation/) to your computer
+1. Download the command
+   [`uv`](https://docs.astral.sh/uv/getting-started/installation/) to your
+   computer
 2. Download [`git`](https://git-scm.com/install/) command to your computer
 3. Clone the project `git clone https://github.com/Highlander-Space-Program/daqserver.git`
 4. Get into the source code `cd daqserver`
 5. Run the project `uv run server`
 
 ## Running this project with MQTT
-1. Same steps as 1-4
-5. Download [`Docker Desktop`](https://docs.docker.com/compose/install/#docker-desktop-recommended) to your computer
-6. Create a .env file `cp .env.example .env`
-7. Spin up the mqtt broker and server `docker compose up -d mosquitto server`
-8. If need to check the logs, run `docker compose logs -f mosquitto`
+
+1. Same steps as 1-4 from above
+2. Download [Docker
+   Desktop](https://docs.docker.com/compose/install/#docker-desktop-recommended)
+   to your computer
+3. Create a .env file `cp .env.example .env`
+4. Spin up the mqtt broker and server `docker compose up -d mosquitto server`
+5. If need to check the logs, run `docker compose logs -f mosquitto`
 
 You don't need to download any Python for this, `uv` will download the right
 version and install all of the packages for you.
