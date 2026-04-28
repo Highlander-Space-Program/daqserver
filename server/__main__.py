@@ -24,6 +24,9 @@ async def websocket_endpoint(websocket: WebSocket):
 
 async def start():
     loop = asyncio.get_running_loop()
+    datapool = Datapool(loop)
+    bridge = None
+    pool_bridge = None
 
     t7 = LabjackT7(datapool)
     sensors = load_sensors_from_json("labjack_channels.json", board="T7")
@@ -45,10 +48,6 @@ async def start():
     influx_database = os.getenv("INFLUXDB_DATABASE")
     mqtt_host = os.getenv("MQTT_HOST")
     mqtt_port = int(os.getenv("MQTT_PORT", 1883))
-
-    datapool = Datapool(loop)
-    bridge = None
-    pool_bridge = None
 
     influx_exists = all([influx_url, influx_token, influx_database, mqtt_host])
     if influx_exists:
