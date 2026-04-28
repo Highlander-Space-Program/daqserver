@@ -96,5 +96,4 @@ class Datapool:
             return
 
         for callback in self.subscribers[topic.value]:
-            # asyncio.run_coroutine_threadsafe(callback(data), self.loop)
-            asyncio.run(callback(data))
+            asyncio.run_coroutine_threadsafe(callback(data), self.loop)

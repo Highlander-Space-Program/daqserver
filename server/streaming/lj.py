@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 import asyncio
 import random
 from threading import Thread
@@ -107,7 +108,7 @@ def loadcell_voltage_to_lbs_formula(
 
 
 # LabJack wrapper
-class Labjack:
+class Labjack(ABC):
     SCAN_RATE_HZ: int = 10
     SCANS_PER_READ: int = 1
 
@@ -119,6 +120,7 @@ class Labjack:
         self.device = "UNKNOWN"
 
     # Connection
+    @abstractmethod
     def open(self, connection_type: str = "ANY") -> None:
         raise NotImplementedError()
 
@@ -206,17 +208,7 @@ class Labjack:
     def stream(
         self,
         sensors: list[Sensor],
-        loop: asyncio.AbstractEventLoop,
     ) -> None:
-        """
-        Read from the LabJack in a blocking loop and push converted sensor
-        readings into *queue* so the FastAPI WebSocket handler can forward
-        them to connected browsers.
-
-        Run this in a background thread via loop.run_in_executor() so it
-        does not block the asyncio event loop.
-        """
-        self.open("Ethernet")
         for s in sensors:
             s.configure_labjack(ljm, self)
 
@@ -259,11 +251,10 @@ class Labjack:
                         if ain_num >= 48:
                             mux_number = (ain_num - 48) // 8
                         else:
-                            mux_number = 0  
+                            mux_number = 0
 
                         input_id = T7ID(mux_number=mux_number, ain=ain_num)
 
-             
                         st = sensor_type.lower()
                         if st in ("thermocouple", "tc"):
                             data_type = DataType.TC
@@ -306,6 +297,7 @@ class LabjackT8(Labjack):
         super().__init__(datapool)
         self.device = "T8"
 
+    @override
     def open(self, connection_type: str = "ANY") -> None:
         print(f"Opening T8 over {connection_type}...")
         self.handle = ljm.openS("T8", connection_type, "192.168.1.208")
@@ -321,6 +313,7 @@ class LabjackT7(Labjack):
         super().__init__(datapool)
         self.device = "T7"
 
+    @override
     def open(self, connection_type: str = "ANY") -> None:
         print(f"Opening T7 over {connection_type}...")
         self.handle = ljm.openS("T7", connection_type, "192.168.1.3")
