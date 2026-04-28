@@ -7,9 +7,12 @@ import uvicorn
 from dotenv import load_dotenv
 from server.db.bridge import Bridge
 
-from server.streaming.lj import LabjackT7
 from server.streaming.sensors import load_sensors_from_json
 from threading import Thread
+from server.streaming.lj import LabJackTest, LabjackT7
+from server.pool import Datapool, Topic
+from server.db.pool_bridge import PoolBridge
+
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -34,30 +37,46 @@ async def start():
 
     config = uvicorn.Config(app, host="0.0.0.0", port=8000)
     server = uvicorn.Server(config)
-    await server.serve()
 
-
-def main():
     load_dotenv()
+
     influx_url = os.getenv("INFLUXDB_URL")
     influx_token = os.getenv("INFLUXDB_TOKEN")
     influx_database = os.getenv("INFLUXDB_DATABASE")
     mqtt_host = os.getenv("MQTT_HOST")
     mqtt_port = int(os.getenv("MQTT_PORT", 1883))
-    influx_exists = all([influx_url, influx_token, influx_database, mqtt_host])
 
+    datapool = Datapool(loop)
+    bridge = None
+    pool_bridge = None
+
+    influx_exists = all([influx_url, influx_token, influx_database, mqtt_host])
     if influx_exists:
         bridge = Bridge(
             influx_url, influx_token, influx_database, mqtt_host, mqtt_port
         )
         bridge.start()
 
+        pool_bridge = PoolBridge(
+            datapool, influx_url, influx_token, influx_database
+        )
+        pool_bridge.start()
+
     print(f"influx exists: {influx_exists}")
 
     try:
-        asyncio.run(start())
-    except KeyboardInterrupt:
-        pass
+        await server.serve()
+    finally:
+        print("[Shutdown] cleaning up...")
+
+        if pool_bridge:
+            await pool_bridge.shutdown()
+        if bridge:
+            bridge.shutdown()
+
+
+def main():
+    asyncio.run(start())
 
 
 if __name__ == "__main__":
