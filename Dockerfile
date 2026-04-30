@@ -23,4 +23,4 @@ COPY . .
 # Install project itself (fast, since deps are cached)
 RUN uv sync --frozen
 
-CMD ["uv", "run", "server"]
+CMD ["uv", "run", "--offline", "server"]

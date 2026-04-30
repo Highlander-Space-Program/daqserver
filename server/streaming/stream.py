@@ -21,5 +21,6 @@ def init_streaming(datapool: Datapool):
     except LJMError:
         logger.warn("Unable to open t7 labjack through ethernet")
 
-    lj_test = LabJackTest(datapool)
-    lj_test.init()
+    
+    # lj_test = LabJackTest(datapool)
+    # lj_test.init()

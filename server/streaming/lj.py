@@ -18,6 +18,8 @@ from server.streaming.sensors import (
     TimeBasedData,
 )
 from server.streaming.sensors import T7ID
+from server.logger import streaming_logger
+from server.states import PIN_MAPPING
 
 
 def calibration1(voltage):
@@ -245,14 +247,11 @@ class Labjack(ABC):
                         value = self._convert(raw_voltage, sensor_type, ain)
                         value = self._smooth(ain, value, sensor_type)
 
-                        ain_num = int(ain.replace("AIN", ""))
-
                         # MUX logic (important)
-                        if ain_num >= 48:
-                            mux_number = (ain_num - 48) // 8
-                        else:
-                            mux_number = 0
-
+                        
+                        d = PIN_MAPPING[ain]
+                        mux_number = d["mux"]
+                        ain_num = int(d["cb37_pin"].replace("AIN", ""))
                         input_id = T7ID(mux_number=mux_number, ain=ain_num)
 
                         st = sensor_type.lower()
@@ -301,6 +300,8 @@ class LabjackT8(Labjack):
     def open(self, connection_type: str = "ANY") -> None:
         print(f"Opening T8 over {connection_type}...")
         self.handle = ljm.openS("T8", connection_type, "192.168.1.208")
+        ljm.eStreamStop(self.handle)
+
         info = ljm.getHandleInfo(self.handle)
         print(
             f"Opened T8 — device: {info[0]}, connection: {info[1]}, "
@@ -316,7 +317,11 @@ class LabjackT7(Labjack):
     @override
     def open(self, connection_type: str = "ANY") -> None:
         print(f"Opening T7 over {connection_type}...")
-        self.handle = ljm.openS("T7", connection_type, "192.168.1.3")
+        self.handle = ljm.openS("T7", connection_type, "10.10.10.20")
+        try:
+            ljm.eStreamStop(self.handle)
+        except ljm.LJMError as e:
+            streaming_logger.debug(str(e))
 
         print("LabJack state reset.")
 

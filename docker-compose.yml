@@ -74,6 +74,8 @@ services:
     depends_on:
       - mosquitto
       - influxdb3-core
+    volumes:
+      - ./labjack_channels.json:/app/labjack_channels.json
     networks:
       - daq-net
 
