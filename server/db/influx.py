@@ -1,4 +1,5 @@
 import os
+import asyncio
 
 from server.db.bridge import Bridge
 from server.db.pool_bridge import PoolBridge
@@ -29,7 +30,7 @@ def init_influx(datapool: Datapool):
         pool_bridge = PoolBridge(
             datapool, influx_url, influx_token, influx_database
         )
-        pool_bridge.start()
+        asyncio.create_task(pool_bridge.start())
     else:
         logger.warn(
             "Influx is not starting due to missing some environment variables"
