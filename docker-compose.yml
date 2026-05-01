@@ -80,18 +80,18 @@ services:
   #  networks:
   #    - daq-net
 
-  server:
-    build: .
-    container_name: daq-server
-    env_file:
-      - .env
-    ports:
-      - 8000:8000
-    depends_on:
-      - mosquitto
-      - influxdb3-core
-    networks:
-      - daq-net
+  #server:
+  #  build: .
+  #  container_name: daq-server
+  #  env_file:
+  #    - .env
+  #  ports:
+  #    - 8000:8000
+  #  depends_on:
+  #    - mosquitto
+  #    - influxdb3-core
+  #  networks:
+  #    - daq-net
 
 volumes:
   influxdb3_data:  

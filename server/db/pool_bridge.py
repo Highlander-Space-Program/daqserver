@@ -2,6 +2,8 @@ import threading
 import time
 import asyncio
 from influxdb_client_3 import InfluxDBClient3, Point
+from server.streaming.sensors import SensorData
+from server.pool import Topic
 
 
 class PoolBridge:
@@ -39,11 +41,11 @@ class PoolBridge:
         }
 
     # ========== START ==========
-    def start(self):
+    async def start(self):
         self.running = True
 
         # subscribe to datapool
-        self.datapool.subscribe("SENSORDATA", self.handle_data)
+        self.datapool.subscribe(Topic.SENSORDATA, self.handle_data)
 
         # start async flush loop
         loop = asyncio.get_running_loop()
@@ -52,16 +54,17 @@ class PoolBridge:
         print("PoolBridge started")
 
     # ========== CALLBACK (ASYNC) ==========
-    def handle_data(self, data):
+    async def handle_data(self, data: SensorData):
         """
         Receives datapool events (async callback)
         Converts to Influx Point
         """
 
+        print(data)
         try:
             points = self.normalize(data)
             for p in points:
-                self.queue.put_nowait(p)
+                await self.queue.put(p)
         except Exception as e:
             print("[PoolBridge] error:", e)
 
@@ -90,11 +93,6 @@ class PoolBridge:
         raise ValueError(f"Unsupported datapool format: {type(data)}")
 
     # ========== MORE DATA HANDLING ==========
-    def get_measurement(self, name: str | None, fallback="sensor"):
-        if not name:
-            return fallback
-        return str(name).lower()
-
     def get_measurement(self, name: str | None, fallback="sensor"):
         if not name:
             return fallback
@@ -137,6 +135,16 @@ class PoolBridge:
 
         return points
 
+    def apply_identity_tags(self, point, tags: dict):
+        """
+        Apply standardized identity tags to an Influx Point.
+        Filters out None values and ensures everything is string-safe.
+        """
+        for key, value in tags.items():
+            if value is None:
+                continue
+            point.tag(str(key), str(value))
+
     # ========== SENSOR OUTPUT FORMAT ==========
     def from_sensor_output(self, sensor_output):
         points = []
@@ -150,7 +158,7 @@ class PoolBridge:
             self.apply_identity_tags(point, source)
             point.tag("data_type", measurement)
 
-            point.fielt("value", entry.value)
+            point.field("value", entry.value)
             point.time(entry.time)
 
             points.append(point)

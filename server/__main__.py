@@ -24,19 +24,18 @@ async def websocket_endpoint(websocket: WebSocket):
 
 async def start():
     loop = asyncio.get_running_loop()
-    datapool = Datapool(loop)
     bridge = None
     pool_bridge = None
 
-    t7 = LabjackT7(datapool)
-    sensors = load_sensors_from_json("labjack_channels.json", board="T7")
+    #t7 = LabjackT7(datapool)
+    #sensors = load_sensors_from_json("labjack_channels.json", board="T7")
 
-    thread = Thread(
-        target=t7.stream,
-        args=(sensors, loop),
-        daemon=True
-    )
-    thread.start()
+    #thread = Thread(
+    #    target=t7.stream,
+    #    args=(sensors, loop),
+    #    daemon=True
+    #)
+    #thread.start()
 
     config = uvicorn.Config(app, host="0.0.0.0", port=8000)
     server = uvicorn.Server(config)
@@ -48,7 +47,8 @@ async def start():
     influx_database = os.getenv("INFLUXDB_DATABASE")
     mqtt_host = os.getenv("MQTT_HOST")
     mqtt_port = int(os.getenv("MQTT_PORT", 1883))
-
+    ljtest = LabJackTest(datapool)
+    ljtest.init()
     influx_exists = all([influx_url, influx_token, influx_database, mqtt_host])
     if influx_exists:
         bridge = Bridge(
@@ -59,7 +59,7 @@ async def start():
         pool_bridge = PoolBridge(
             datapool, influx_url, influx_token, influx_database
         )
-        pool_bridge.start()
+        await pool_bridge.start()
 
     print(f"influx exists: {influx_exists}")
 
