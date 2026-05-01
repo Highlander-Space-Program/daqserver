@@ -58,15 +58,10 @@ class PoolBridge:
         Converts to Influx Point
         """
 
-        if hasattr(data, "to_dict"):
-            print(data.to_dict())
-        else:
-            print(data)
-
         try:
             points = self.normalize(data)
             for p in points:
-                await self.queue.put_nowait(p)
+                await self.queue.put(p)
 
         except Exception as e:
             print("[PoolBridge] error:", e)
@@ -232,7 +227,6 @@ class PoolBridge:
         try:
             # run blocking write in thread
             await asyncio.to_thread(self.client.write, batch)
-            print(f"[PoolBridge] wrote {len(batch)}")
         except Exception as e:
             print("[PoolBridge write error]:", e)
 

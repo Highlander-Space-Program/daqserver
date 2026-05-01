@@ -24,7 +24,7 @@ services:
       - daq-net
 
   influxdb3-ui:
-    image: influxdata/influxdb3-ui:latest
+    image: influxdata/influxdb3-ui:1.8.0
     container_name: influxdb3-ui
     ports:
       - "8080:8080" # Access via http://localhost:8888

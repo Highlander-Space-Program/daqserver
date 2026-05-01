@@ -30,8 +30,6 @@ async def start():
 def main():
     load_dotenv()
 
-    asyncio.run(start())
-
     try:
         asyncio.run(start())
     except KeyboardInterrupt:

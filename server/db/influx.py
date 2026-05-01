@@ -21,11 +21,11 @@ def init_influx(datapool: Datapool):
     influx_exists = all([influx_url, influx_token, influx_database, mqtt_host])
 
     if influx_exists:
-        logger.info("Found environment variables for Influx. Start...")
-        bridge = Bridge(
-            influx_url, influx_token, influx_database, mqtt_host, mqtt_port
-        )
-        bridge.start()
+        #logger.info("Found environment variables for Influx. Start...")
+        #bridge = Bridge(
+        #    influx_url, influx_token, influx_database, mqtt_host, mqtt_port
+        #)
+        #bridge.start()
 
         pool_bridge = PoolBridge(
             datapool, influx_url, influx_token, influx_database
