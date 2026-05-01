@@ -2,7 +2,7 @@ import time
 import asyncio
 from influxdb_client_3 import InfluxDBClient3, Point
 from server.pool import Topic
-
+from server.streaming.sensors import SensorData
 
 class PoolBridge:
     def __init__(self, datapool, url, token, database_name):
@@ -52,7 +52,7 @@ class PoolBridge:
         print("PoolBridge started")
 
     # ========== CALLBACK (ASYNC) ==========
-    async def handle_data(self, data):
+    async def handle_data(self, data:SensorData):
         """
         Receives datapool events (async callback)
         Converts to Influx Point
