@@ -27,7 +27,6 @@ async def start():
         logger.info("[Shutdown] cleaning up...")
         await shutdown_influx()
 
-
 def main():
     load_dotenv()
 
@@ -37,7 +36,6 @@ def main():
         pass
     finally:
         logger.info("Shutting down server")
-
 
 if __name__ == "__main__":
     main()

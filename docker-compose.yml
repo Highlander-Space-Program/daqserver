@@ -24,7 +24,7 @@ services:
       - daq-net
 
   influxdb3-ui:
-    image: influxdata/influxdb3-ui:latest
+    image: influxdata/influxdb3-ui:1.8.0
     container_name: influxdb3-ui
     ports:
       - "8080:8080" # Access via http://localhost:8888
@@ -63,6 +63,22 @@ services:
     restart: unless-stopped
     networks:
       - daq-net
+
+  #mqtt-influx-bridge:  # custom service
+  #  build: ./mqtt_bridge
+  #  container_name: mqtt-influx-bridge
+  #  depends_on:
+  #    - mosquitto
+  #    - influxdb3-core
+  #  environment:
+  #    INFLUX_URL: http://influxdb3-core:8181
+  #    INFLUX_TOKEN: ${INFLUXDB_TOKEN}  
+  #    INFLUX_DATABASE: daqDB
+  #    MQTT_HOST: mosquitto
+  #    MQTT_PORT: 1883
+  #  restart: unless-stopped
+  #  networks:
+  #    - daq-net
 
   server:
     build: .

@@ -1,7 +1,8 @@
+import time
 import asyncio
 from influxdb_client_3 import InfluxDBClient3, Point
 from server.pool import Topic
-
+from server.streaming.sensors import SensorData
 
 class PoolBridge:
     def __init__(self, datapool, url, token, database_name):
@@ -38,7 +39,7 @@ class PoolBridge:
         }
 
     # ========== START ==========
-    def start(self):
+    async def start(self):
         self.running = True
 
         # subscribe to datapool
@@ -51,7 +52,7 @@ class PoolBridge:
         print("PoolBridge started")
 
     # ========== CALLBACK (ASYNC) ==========
-    async def handle_data(self, data):
+    async def handle_data(self, data:SensorData):
         """
         Receives datapool events (async callback)
         Converts to Influx Point
@@ -60,31 +61,20 @@ class PoolBridge:
         try:
             points = self.normalize(data)
             for p in points:
-                self.queue.put_nowait(p)
+                await self.queue.put(p)
+
         except Exception as e:
             print("[PoolBridge] error:", e)
 
     # ========== NORMALIZE DATA  ==========
     def normalize(self, data):
         """
-        Converts any datapool payload into Influx Points
-        Supports dict, list, or structured objects
+        Force all LabJack/SensorData into SensorOutput path only.
+        Prevents fallback-to-default measurement bugs.
         """
-
-        if isinstance(data, list):
-            return [p for d in data for p in self.normalize(d)]
 
         if hasattr(data, "get_data"):
             return self.from_sensor_output(data.get_data())
-
-        if hasattr(data, "to_dict"):
-            data = data.to_dict()
-
-        if isinstance(data, dict):
-            if "channels" in data:
-                return self.from_channels(data)
-
-            return [self.build_point(data)]
 
         raise ValueError(f"Unsupported datapool format: {type(data)}")
 
@@ -102,7 +92,11 @@ class PoolBridge:
         channels = packet.get("channels", {})
 
         for ain, ch in channels.items():
-            measurement = self.get_measurement(ch.get("sensor_type"))
+            measurement = (
+                payload.get("measurement")
+                or payload.get("data_type")
+                or "sensor"
+            )
             point = Point(measurement)
 
             # identity schema
@@ -131,20 +125,31 @@ class PoolBridge:
 
         return points
 
+    def apply_identity_tags(self, point, tags: dict):
+        """
+        Apply standardized identity tags to an Influx Point.
+        Filters out None values and ensures everything is string-safe.
+        """
+        for key, value in tags.items():
+            if value is None:
+                continue
+            point.tag(str(key), str(value))
+
     # ========== SENSOR OUTPUT FORMAT ==========
     def from_sensor_output(self, sensor_output):
         points = []
 
         source = sensor_output.source.to_dict()
-        measurement = self.get_measurement(sensor_output.data_type.value)
+        measurement = sensor_output.data_type.value
 
         for entry in sensor_output.data:
-            point = Point(measurement)  # measurement = type (TC, PT, etc.)
+            point = Point(measurement)
 
-            self.apply_identity_tags(point, source)
-            point.tag("data_type", measurement)
+            self.apply_identity_tags(point, {k: str(v) for k, v in source.items()})
 
-            point.field("value", entry.value)
+            point.tag("data_type", sensor_output.data_type.value)
+
+            point.field("value", float(entry.value))  # force numeric safety
             point.time(entry.time)
 
             points.append(point)
@@ -157,18 +162,6 @@ class PoolBridge:
                 point.time(t)
         except Exception:
             pass
-
-    def apply_identity_tags(self, point, tags: dict):
-        """
-        Applies a dictionary of tags to an InfluxDB Point.
-        Filters out None values and casts all tag values to strings.
-        """
-        if not tags or not isinstance(tags, dict):
-            return
-
-        for key, value in tags.items():
-            if value is not None:
-                point.tag(str(key), str(value))
 
     # ========== POINT BUILDER ==========
     def build_point(self, payload):
@@ -234,7 +227,6 @@ class PoolBridge:
         try:
             # run blocking write in thread
             await asyncio.to_thread(self.client.write, batch)
-            print(f"[PoolBridge] wrote {len(batch)}")
         except Exception as e:
             print("[PoolBridge write error]:", e)
 
