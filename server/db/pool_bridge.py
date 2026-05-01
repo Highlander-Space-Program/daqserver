@@ -60,7 +60,11 @@ class PoolBridge:
         Converts to Influx Point
         """
 
-        print(data)
+        if hasattr(data, "to_dict"):
+            print(data.to_dict())
+        else:
+            print(data)
+
         try:
             points = self.normalize(data)
             for p in points:
@@ -71,24 +75,12 @@ class PoolBridge:
     # ========== NORMALIZE DATA  ==========
     def normalize(self, data):
         """
-        Converts any datapool payload into Influx Points
-        Supports dict, list, or structured objects
+        Force all LabJack/SensorData into SensorOutput path only.
+        Prevents fallback-to-default measurement bugs.
         """
-
-        if isinstance(data, list):
-            return [p for d in data for p in self.normalize(d)]
 
         if hasattr(data, "get_data"):
             return self.from_sensor_output(data.get_data())
-
-        if hasattr(data, "to_dict"):
-            data = data.to_dict()
-
-        if isinstance(data, dict):
-            if "channels" in data:
-                return self.from_channels(data)
-
-            return [self.build_point(data)]
 
         raise ValueError(f"Unsupported datapool format: {type(data)}")
 
@@ -106,7 +98,11 @@ class PoolBridge:
         channels = packet.get("channels", {})
 
         for ain, ch in channels.items():
-            measurement = self.get_measurement(ch.get("sensor_type"))
+            measurement = (
+                payload.get("measurement")
+                or payload.get("data_type")
+                or "sensor"
+            )
             point = Point(measurement)
 
             # identity schema
@@ -150,15 +146,16 @@ class PoolBridge:
         points = []
 
         source = sensor_output.source.to_dict()
-        measurement = self.get_measurement(sensor_output.data_type.value)
+        measurement = sensor_output.data_type.value
 
         for entry in sensor_output.data:
-            point = Point(measurement)  # measurement = type (TC, PT, etc.)
+            point = Point(measurement)
 
-            self.apply_identity_tags(point, source)
-            point.tag("data_type", measurement)
+            self.apply_identity_tags(point, {k: str(v) for k, v in source.items()})
 
-            point.field("value", entry.value)
+            point.tag("data_type", sensor_output.data_type.value)
+
+            point.field("value", float(entry.value))  # force numeric safety
             point.time(entry.time)
 
             points.append(point)
