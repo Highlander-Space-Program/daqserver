@@ -74,6 +74,7 @@ class T8ID(InputId):
 class DataType(Enum):
     TC = "thermocouple"
     PT = "pressuretransducer"
+    LC = "loadcell"
     TEST = "test"
 
 

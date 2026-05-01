@@ -10,7 +10,7 @@ from server.logger import streaming_logger as logger
 def init_streaming(datapool: Datapool):
     t7 = LabjackT7(datapool)
     try:
-        t7.open("Ethernet")
+        t7.open("Ethernet", "10.10.10.20")
         sensors = load_sensors_from_json("labjack_channels.json", board="T7")
         thread = Thread(target=t7.stream, args=(sensors,), daemon=True)
         thread.start()
