@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 import asyncio
 import random
 from threading import Thread
@@ -17,6 +18,8 @@ from server.streaming.sensors import (
     TimeBasedData,
 )
 from server.streaming.sensors import T7ID
+from server.logger import streaming_logger
+from server.states import PIN_MAPPING
 
 
 def calibration1(voltage):
@@ -107,7 +110,7 @@ def loadcell_voltage_to_lbs_formula(
 
 
 # LabJack wrapper
-class Labjack:
+class Labjack(ABC):
     SCAN_RATE_HZ: int = 10
     SCANS_PER_READ: int = 1
 
@@ -119,6 +122,7 @@ class Labjack:
         self.device = "UNKNOWN"
 
     # Connection
+    @abstractmethod
     def open(self, connection_type: str = "ANY") -> None:
         raise NotImplementedError()
 
@@ -206,17 +210,7 @@ class Labjack:
     def stream(
         self,
         sensors: list[Sensor],
-        loop: asyncio.AbstractEventLoop,
     ) -> None:
-        """
-        Read from the LabJack in a blocking loop and push converted sensor
-        readings into *queue* so the FastAPI WebSocket handler can forward
-        them to connected browsers.
-
-        Run this in a background thread via loop.run_in_executor() so it
-        does not block the asyncio event loop.
-        """
-        self.open("Ethernet")
         for s in sensors:
             s.configure_labjack(ljm, self)
 
@@ -253,17 +247,13 @@ class Labjack:
                         value = self._convert(raw_voltage, sensor_type, ain)
                         value = self._smooth(ain, value, sensor_type)
 
-                        ain_num = int(ain.replace("AIN", ""))
-
                         # MUX logic (important)
-                        if ain_num >= 48:
-                            mux_number = (ain_num - 48) // 8
-                        else:
-                            mux_number = 0  
-
+                        
+                        d = PIN_MAPPING[ain]
+                        mux_number = d["mux"]
+                        ain_num = int(d["cb37_pin"].replace("AIN", ""))
                         input_id = T7ID(mux_number=mux_number, ain=ain_num)
 
-             
                         st = sensor_type.lower()
                         if st in ("thermocouple", "tc"):
                             data_type = DataType.TC
@@ -306,9 +296,12 @@ class LabjackT8(Labjack):
         super().__init__(datapool)
         self.device = "T8"
 
+    @override
     def open(self, connection_type: str = "ANY") -> None:
         print(f"Opening T8 over {connection_type}...")
         self.handle = ljm.openS("T8", connection_type, "192.168.1.208")
+        ljm.eStreamStop(self.handle)
+
         info = ljm.getHandleInfo(self.handle)
         print(
             f"Opened T8 — device: {info[0]}, connection: {info[1]}, "
@@ -321,9 +314,14 @@ class LabjackT7(Labjack):
         super().__init__(datapool)
         self.device = "T7"
 
+    @override
     def open(self, connection_type: str = "ANY") -> None:
         print(f"Opening T7 over {connection_type}...")
-        self.handle = ljm.openS("T7", connection_type, "192.168.1.3")
+        self.handle = ljm.openS("T7", connection_type, "10.10.10.20")
+        try:
+            ljm.eStreamStop(self.handle)
+        except ljm.LJMError as e:
+            streaming_logger.debug(str(e))
 
         print("LabJack state reset.")
 

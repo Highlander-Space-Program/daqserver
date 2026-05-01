@@ -1,8 +1,13 @@
 FROM ghcr.io/astral-sh/uv:debian
 
+RUN apt update && apt install -y libusb-1.0-0-dev && apt clean
 WORKDIR /app
+RUN wget https://files.labjack.com/installers/LJM/Linux/x64/release/LabJack-LJM_2025-05-07.zip -O driver.zip && \
+    unzip driver.zip && \
+    ./labjack_ljm_installer.run -- --no-restart-device-rules || true && \
+    rm driver.zip labjack_ljm_installer.run INSTALL.md
 
-RUN wget https://files.labjack.com/installers/LJM/Linux/x64/release/LabJack-LJM_2025-05-07.zip -O driver.zip && unzip driver.zip && ./labjack_ljm_installer.run && rm driver.zip && labjack_ljm_installer.run
+
 
 # ---- Cache-friendly dependency install ----
 # Copy only dependency files first
@@ -18,5 +23,4 @@ COPY . .
 # Install project itself (fast, since deps are cached)
 RUN uv sync --frozen
 
-
-CMD ["uv", "run", "server"]
+CMD ["uv", "run", "--offline", "server"]

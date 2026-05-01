@@ -5,7 +5,6 @@ import json
 from datetime import datetime
 from typing import List, Optional, Self, override
 
-
 class InputId(ABC):
     @abstractmethod
     def to_dict(self) -> dict:
@@ -220,3 +219,4 @@ def load_sensors_from_json(
 
     print(f"Loaded {len(sensors)} sensors")
     return sensors
+

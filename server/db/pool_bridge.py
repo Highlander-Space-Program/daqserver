@@ -1,8 +1,6 @@
-import threading
 import time
 import asyncio
 from influxdb_client_3 import InfluxDBClient3, Point
-from server.streaming.sensors import SensorData
 from server.pool import Topic
 
 
@@ -54,7 +52,7 @@ class PoolBridge:
         print("PoolBridge started")
 
     # ========== CALLBACK (ASYNC) ==========
-    async def handle_data(self, data: SensorData):
+    async def handle_data(self, data):
         """
         Receives datapool events (async callback)
         Converts to Influx Point
@@ -68,7 +66,8 @@ class PoolBridge:
         try:
             points = self.normalize(data)
             for p in points:
-                await self.queue.put(p)
+                await self.queue.put_nowait(p)
+
         except Exception as e:
             print("[PoolBridge] error:", e)
 

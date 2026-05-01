@@ -5,7 +5,7 @@ from typing import override
 import inspect
 from collections import defaultdict
 
-from server.streaming.sensors import SensorData
+from server.streaming.sensors import SensorData, DataType
 
 
 class Topic(Enum):
@@ -92,9 +92,9 @@ class Datapool:
         Synchronously publishes data to a topic.
         Schedules the async subscribers to execute on the provided event loop.
         """
+
         if topic.value not in self.subscribers.keys():
             return
 
         for callback in self.subscribers[topic.value]:
-            # asyncio.run_coroutine_threadsafe(callback(data), self.loop)
-            asyncio.run(callback(data))
+            asyncio.run_coroutine_threadsafe(callback(data), self.loop)
