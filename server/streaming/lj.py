@@ -123,7 +123,7 @@ class Labjack(ABC):
 
     # Connection
     @abstractmethod
-    def open(self, connection_type: str = "ANY") -> None:
+    def open(self, connection_type: str = "ANY", identifier: str = "ANY") -> None:
         raise NotImplementedError()
 
     def close(self) -> None:
@@ -254,11 +254,20 @@ class Labjack(ABC):
                         ain_num = int(d["cb37_pin"].replace("AIN", ""))
                         input_id = T7ID(mux_number=mux_number, ain=ain_num)
 
+                        # if input_id != T7ID(4,8) and input_id != T7ID(4,7):
+                        #     continue
+
+                        # print(input_id)
+                        # print(raw_voltage)
+                        # print(value)
+
                         st = sensor_type.lower()
                         if st in ("thermocouple", "tc"):
                             data_type = DataType.TC
                         elif st in ("pressure", "pt"):
                             data_type = DataType.PT
+                        elif st in ("loadcell", "lc"):
+                            data_type = DataType.TC
                         else:
                             data_type = DataType.TEST
 
@@ -285,7 +294,8 @@ class Labjack(ABC):
                 return calibration2(voltage)
             if ain == "AIN3":
                 return calibration3(voltage)
-            # return loadcell_voltage_to_lbs_formula(voltage, 1000, 2, 5)
+            else:
+                return loadcell_voltage_to_lbs_formula(voltage, 500, 2, 5)
         if sensor_type in ("pressure", "pt"):
             return pressure_voltage_to_psi(voltage)
         return voltage  # raw voltage fallback
@@ -297,9 +307,9 @@ class LabjackT8(Labjack):
         self.device = "T8"
 
     @override
-    def open(self, connection_type: str = "ANY") -> None:
+    def open(self, connection_type: str = "ANY", identifier: str = "ANY") -> None:
         print(f"Opening T8 over {connection_type}...")
-        self.handle = ljm.openS("T8", connection_type, "192.168.1.208")
+        self.handle = ljm.openS("T8", connection_type, identifier)
         ljm.eStreamStop(self.handle)
 
         info = ljm.getHandleInfo(self.handle)
@@ -315,9 +325,9 @@ class LabjackT7(Labjack):
         self.device = "T7"
 
     @override
-    def open(self, connection_type: str = "ANY") -> None:
+    def open(self, connection_type: str = "ANY", identifier: str = "ANY") -> None:
         print(f"Opening T7 over {connection_type}...")
-        self.handle = ljm.openS("T7", connection_type, "10.10.10.20")
+        self.handle = ljm.openS("T7", connection_type, identifier)
         try:
             ljm.eStreamStop(self.handle)
         except ljm.LJMError as e:
