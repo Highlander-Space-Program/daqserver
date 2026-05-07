@@ -6,6 +6,6 @@ from server.web.resources import templates
 router = APIRouter(prefix="/controls", tags=["controls"])
 
 
-@router.get("/controls", response_class=HTMLResponse)
+@router.get("/", response_class=HTMLResponse)
 async def controls_page(request: Request):
     return templates.TemplateResponse("controls.html", {"request": request})
