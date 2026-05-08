@@ -4,6 +4,7 @@ function openSensorModal() {
     document.getElementById("sensor-name-input").value = "";
     document.getElementById("sensor-port-input").value = backendConfig.ports[0] || "";
     document.getElementById("sensor-equation-input").value = "";
+    document.getElementById("delete-sensor-btn").classList.add("hidden");
     document.getElementById("sensor-modal").classList.remove("hidden");
 }
 
@@ -13,6 +14,7 @@ function openEditSensor(sensor) {
     document.getElementById("sensor-name-input").value = sensor.name;
     document.getElementById("sensor-port-input").value = sensor.port;
     document.getElementById("sensor-equation-input").value = sensor.equation_id || "";
+    document.getElementById("delete-sensor-btn").classList.remove("hidden");
     document.getElementById("sensor-modal").classList.remove("hidden");
 }
 

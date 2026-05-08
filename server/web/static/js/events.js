@@ -69,6 +69,13 @@ function wireEvents() {
       renderGraphs();
     }
   };
+
+  document.getElementById("delete-sensor-btn").onclick = async () => {
+    if (!editingSensorId) return;
+
+    await deleteSensor(editingSensorId);
+    closeSensorModal();
+  }
 }
 
 async function saveSensor() {
@@ -219,4 +226,42 @@ async function deleteEquation(equationId) {
   renderLeftPanel();
   renderEquationOptions();
 }
+
+function tareSensor(sensorID) {
+  console.log("Tare clicked for sensor:", sensorID);
+
+  fetch(`/api/sensors/${sensorID}/tare`, {
+    method: "POST"
+  })
+  .then(res => res.json())
+  .then(data => {
+    console.log("Tare Successful:", data);
+  })
+  .catch(err => {
+    console.error("Tare failed", err);
+  });
+}
+
+async function deleteGraph(graphId) {
+  try {
+    await apiDelete(`/api/graphs/${graphId}`);
+
+    backendConfig.graphs = backendConfig.graphs.filter(
+      (g) => g.id !== graphId
+    );
+
+    if (chartInstances[graphId]) {
+      chartInstances[graphId].destroy();
+      delete chartInstances[graphId];
+    }
+
+    renderStats();
+    renderGraphs();
+    updateWebSocketSubscriptions();
+  } catch (err) {
+    console.error("Failed to delete graph:", err);
+  }
+}
+
+window.deleteGraph = deleteGraph;
 

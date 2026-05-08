@@ -21,7 +21,13 @@ async function apiDelete(url) {
     const res = await fetch(url, {
         method: "DELETE"
     });
-    return await res.json();
+
+    const data = await res.json();
+
+    if (!res.ok || data.error) {
+        throw new Error(data.error || `Delete failed: ${url}`);
+    }
+    return await data;
 }
 
 function evaluateCustomFunction(funcString, valuesArray) {

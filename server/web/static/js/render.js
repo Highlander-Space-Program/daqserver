@@ -88,12 +88,10 @@ function renderLeftPanel() {
                 </div>
                 <div class="item-actions">
                     <button class="tiny-btn edit-btn">Edit</button>
-                    <button class="tiny-btn delete-btn">Delete</button>
                 </div>
             `;
 
       div.querySelector(".edit-btn").onclick = () => openEditSensor(sensor);
-      div.querySelector(".delete-btn").onclick = () => deleteSensor(sensor.id);
 
       leftScrollList.appendChild(div);
     });
@@ -161,11 +159,63 @@ function renderGraphs() {
                     <div class="graph-title">${graph.name}</div>
                     <small>${sensor ? sensor.name : "Unknown sensor"}</small>
                 </div>
+                <div class ="item-actions">
+                <button class="tiny-btn edit-btn">Edit</button>
+                <button class="tiny-btn tare-button">Tare</button>
+                <button class="tiny-btn delete-btn">Delete</button>
+                <button class="tiny-btn zoom-btn">Zoom</button>
+                </div>
             </div>
             <div class="chart-wrap">
                 <canvas id="${canvasId}"></canvas>
             </div>
         `;
+
+        const tareBtn = panel.querySelector(".tare-button");
+        const editBtn = panel.querySelector(".edit-btn");
+        const deleteBtn = panel.querySelector(".delete-btn");
+        const zoomBtn = panel.querySelector(".zoom-btn");
+
+        tareBtn.onclick = () => {
+          tareSensor(sensor.id);
+        };
+
+        editBtn.onclick = () => {
+          openEditSensor(sensor);
+        };
+
+        deleteBtn.onclick = () => {
+          window.deleteGraph(graph.id);
+        };
+
+        zoomBtn.onclick = () => {
+          const chart = chartInstances[graph.id];
+        
+          if (panel.classList.contains("graph-panel-expanded")) {
+            panel.classList.remove("graph-panel-expanded");
+            zoomBtn.textContent = "Zoom";
+        
+            if (chart) {
+              chart.canvas.style.width = "100%";
+              chart.canvas.style.height = "100%";
+        
+              setTimeout(() => {
+                chart.resize();
+                chart.update("none");
+              }, 100);
+            }
+          } else {
+            panel.classList.add("graph-panel-expanded");
+            zoomBtn.textContent = "Unzoom";
+        
+            if (chart) {
+              setTimeout(() => {
+                chart.resize();
+                chart.update("none");
+              }, 100);
+            }
+          }
+        };       
 
     dashboardGrid.appendChild(panel);
     buildBlankChart(canvasId, graph.name, graph.id);
