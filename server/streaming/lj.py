@@ -267,7 +267,7 @@ class Labjack(ABC):
                         elif st in ("pressure", "pt"):
                             data_type = DataType.PT
                         elif st in ("loadcell", "lc"):
-                            data_type = DataType.TC
+                            data_type = DataType.LC
                         else:
                             data_type = DataType.TEST
 
