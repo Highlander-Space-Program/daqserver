@@ -7,7 +7,21 @@ from server.states import DB_PATH
 from server.web.resources import pass_to_frontend
 from server.web.routes import dashboard, control, camera
 
-app = FastAPI()
+from contextlib import asynccontextmanager
+from server.mqtt import ControlPublisher
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    app.state.control_publisher = ControlPublisher()
+
+    try:
+        yield
+    finally:
+        app.state.control_publisher.shutdown()
+
+
+app = FastAPI(lifespan=lifespan)
 app.mount("/static", StaticFiles(directory="./server/web/static"), name="static")
 app.include_router(dashboard.router)
 app.include_router(control.router)
