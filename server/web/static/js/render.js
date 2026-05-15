@@ -8,17 +8,51 @@ function renderAll() {
   renderEquationOptions();
   renderGraphSensorOptions();
   renderLeftPanel();
+  renderValueDropdowns();
   renderGraphs();
 }
 
 function renderStats() {
-  document.getElementById("read-rate").textContent =
-    backendConfig.read_rate_hz === "--"
-      ? "-- Hz"
-      : `${backendConfig.read_rate_hz} Hz`;
+  // document.getElementById("read-rate").textContent =
+  //   backendConfig.read_rate_hz === "--"
+  //     ? "-- Hz"
+  //     : `${backendConfig.read_rate_hz} Hz`;
 
-  document.getElementById("active-graphs").textContent =
-    backendConfig.graphs.length;
+  // document.getElementById("active-graphs").textContent =
+  //   backendConfig.graphs.length;
+}
+
+function renderValueDropdowns() {
+  for (let slot = 0; slot < 3; slot++) {
+    const select = document.getElementById(`selected-graph-${slot}`);
+
+    if (!select) continue;
+
+    select.innerHTML = "";
+
+    const noneOption = document.createElement("option");
+    noneOption.value = "";
+    noneOption.textContent = `Select Graph ${slot + 1}`;
+
+    select.appendChild(noneOption);
+
+    backendConfig.graphs.forEach((graph) => {
+      const option = document.createElement("option");
+
+      option.value = graph.id;
+      option.textContent = graph.name;
+
+      select.appendChild(option);
+    });
+
+    select.value = selectedValueGraphIds[slot] || "";
+
+    select.onchange = () => {
+      selectedValueGraphIds[slot] = select.value || null;
+
+      document.getElementById(`selected-value-${slot}`).textContent = "--";
+    };
+  }
 }
 
 function renderPortOptions() {
@@ -215,7 +249,7 @@ function renderGraphs() {
               }, 100);
             }
           }
-        };       
+        };
 
     dashboardGrid.appendChild(panel);
     buildBlankChart(canvasId, graph.name, graph.id);
@@ -235,4 +269,3 @@ function renderGraphs() {
   document.getElementById("graph-page-label").textContent =
     `Page ${currentGraphPage + 1} of ${totalPages}`;
 }
-
