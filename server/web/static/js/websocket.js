@@ -99,6 +99,12 @@ function handleStreamData(message) {
       }
     }
 
+    selectedValueGraphIds.forEach((selectedGraphId, slot) => {
+      if (graph.id === selectedGraphId) {
+        document.getElementById(`selected-value-${slot}`).textContent = Number(finalValue).toFixed(3);
+      }
+    });
+
     // Push data to the specific Chart.js instance
     const chart = chartInstances[graph.id];
     if (chart) {
