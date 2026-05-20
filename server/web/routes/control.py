@@ -15,7 +15,7 @@ router = APIRouter(prefix="/controls", tags=["controls"])
 
 @router.get("/", response_class=HTMLResponse)
 async def controls_page(request: Request):
-    return templates.TemplateResponse("controls.html", {"request": request})
+    return templates.TemplateResponse("controls2.html", {"request": request})
 
 
 @router.get("/api/breakwire")

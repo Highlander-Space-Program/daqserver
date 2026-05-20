@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control Panel</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='css/controls.css') }}">
+</head>
+
+<body>
+    <div class="page-layout">
+
+        <!-- LEFT SIDE BUTTONS -->
+        <aside class="sidebar">
+            <button class="side-btn active">Control</button>
+            <button class="side-btn">Data</button>
+        </aside>
+
+        <!-- MAIN PAGE -->
+        <div class="container">
+            <h1>Control Panel</h1>
+
+            <!-- MQTT panel -->
+            <section class="panel">
+                <div class="panel-title">MQTT Connection</div>
+
+                <div class="xbee-row">
+                    <div class="left">
+                        <span id="xbee-dot" class="dot gray"></span>
+                        <span id="xbee-status">Disconnected</span>
+                        <span id="xbee-port" class="subtitle"></span>
+                    </div>
+
+                    <div class="right">
+                        <button onclick="connectXbee()">Connect</button>
+                        <button onclick="disconnectXbee()">Disconnect</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Top row -->
+            <div class="top-row">
+
+                <section class="panel">
+                    <div class="panel-title">Board Statuses</div>
+
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="board-status-body"></tbody>
+                    </table>
+                </section>
+
+                <section class="panel">
+                    <div class="panel-title">System Flags</div>
+
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Armed</th>
+                                <th>Arm</th>
+                                <th>Disarm</th>
+                            </tr>
+                        </thead>
+                        <tbody id="important-status-body"></tbody>
+                    </table>
+                </section>
+
+                <section class="panel">
+                    <div class="panel-title">Event Log</div>
+                    <div id="event-log" class="log-box"></div>
+                </section>
+
+            </div>
+
+            <!-- Bottom row -->
+            <div class="bottom-row">
+
+                <section class="panel">
+                    <div class="panel-title">Thermocouples (°F)</div>
+
+                    <table class="sensor-table">
+                        <thead>
+                            <tr>
+                                <th>TC</th>
+                                <th>Value (°F)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tc-body"></tbody>
+                    </table>
+                </section>
+
+                <section class="panel">
+                    <div class="panel-title">Load Cells (lbs)</div>
+
+                    <table class="sensor-table">
+                        <thead>
+                            <tr>
+                                <th>LC</th>
+                                <th>Value (lbs)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="lc-body"></tbody>
+                    </table>
+                </section>
+
+                <section class="panel">
+                    <div class="panel-title">Pressure Transducers (PSI)</div>
+
+                    <table class="sensor-table">
+                        <thead>
+                            <tr>
+                                <th>PT</th>
+                                <th>Value (PSI)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pt-body"></tbody>
+                    </table>
+                </section>
+
+                <section class="panel">
+                    <div class="panel-title">Solenoid Board</div>
+
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Valve</th>
+                                <th>Status</th>
+                                <th>Open</th>
+                                <th>Close</th>
+                                <th>Power</th>
+                                <th>Toggle</th>
+                            </tr>
+                        </thead>
+                        <tbody id="solenoid-body"></tbody>
+                    </table>
+                </section>
+
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', path='js/controls.js') }}?v=5"></script>
+    <script src="{{ url_for('static', path='js/app.js') }}"></script>
+</body>
+
+</html>
