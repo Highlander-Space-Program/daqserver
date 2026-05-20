@@ -59,3 +59,35 @@ def test_non_breakwire_topic_does_not_change_status():
     publish_breakwire_payload(publisher, b"broken", topic="device/other")
 
     assert publisher.get_breakwire_status() == {"status": "unknown"}
+
+
+def test_missing_mqtt_host_disables_publisher(monkeypatch):
+    monkeypatch.delenv("MQTT_HOST", raising=False)
+
+    publisher = ControlPublisher()
+
+    assert publisher.is_connected is False
+    assert publisher.get_breakwire_status() == {"status": "unknown"}
+    assert publisher.send_command(1) is False
+
+    publisher.shutdown()
+
+
+def test_unreachable_mqtt_host_disables_publisher(monkeypatch):
+    class FailingClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def connect(self, host, port):
+            raise OSError("getaddrinfo failed")
+
+    monkeypatch.setenv("MQTT_HOST", "mosquitto")
+    monkeypatch.setenv("MQTT_PORT", "1883")
+    monkeypatch.setattr("server.mqtt.mqtt.Client", FailingClient)
+
+    publisher = ControlPublisher()
+
+    assert publisher.is_connected is False
+    assert publisher.send_command(1) is False
+
+    publisher.shutdown()

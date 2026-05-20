@@ -1,5 +1,5 @@
 from server.streaming import stream
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 from starlette.responses import HTMLResponse
 
@@ -25,8 +25,15 @@ async def get_breakwire_status(request: Request):
 
 @router.post("/api/command")
 async def send_control_command(request: Request, payload: ControlCommand):
-    request.app.state.control_publisher.send_command(payload.command)
+    sent = request.app.state.control_publisher.send_command(payload.command)
+    if not sent:
+        raise HTTPException(
+            status_code=503,
+            detail="MQTT control publisher is not connected",
+        )
+
     return {"success": True}
+
 
 @router.post("/api/sensors/{sensor_id}/tare")
 async def tare_sensor(sensor_id: str):

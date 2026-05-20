@@ -4,6 +4,8 @@ from typing import Any, Literal, cast
 
 import paho.mqtt.client as mqtt
 
+from server.logger import server_logger as logger
+
 BreakwireStatus = Literal["unknown", "connected", "broken"]
 
 
@@ -15,25 +17,58 @@ class ControlPublisher:
     def __init__(self) -> None:
         self._breakwire_status: BreakwireStatus = "unknown"
         self._breakwire_lock = Lock()
+        self.client: mqtt.Client | None = None
 
         mqtt_host = os.getenv("MQTT_HOST")
-        mqtt_port = int(os.getenv("MQTT_PORT", 1883))
+        mqtt_port_raw = os.getenv("MQTT_PORT", "1883")
 
-        if mqtt_host is None:
-            raise RuntimeError("MQTT_HOST environment variable is required")
+        if not mqtt_host:
+            logger.warning(
+                "MQTT_HOST is not set; control MQTT features are disabled"
+            )
+            return
 
-        self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-        self.client.on_connect = self._on_connect
-        self.client.on_message = self._on_message
-        self.client.connect(mqtt_host, mqtt_port)
-        self.client.loop_start()
+        try:
+            mqtt_port = int(mqtt_port_raw)
+        except ValueError:
+            logger.warning(
+                "MQTT_PORT must be an integer; control MQTT features are disabled"
+            )
+            return
 
-    def send_command(self, control_cmd: int) -> None:
+        client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+        client.on_connect = self._on_connect
+        client.on_message = self._on_message
+
+        try:
+            client.connect(mqtt_host, mqtt_port)
+        except OSError as exc:
+            logger.warning(
+                "Unable to connect to MQTT broker at %s:%s; control MQTT "
+                "features are disabled: %s",
+                mqtt_host,
+                mqtt_port,
+                exc,
+            )
+            return
+
+        client.loop_start()
+        self.client = client
+
+    @property
+    def is_connected(self) -> bool:
+        return self.client is not None
+
+    def send_command(self, control_cmd: int) -> bool:
+        if self.client is None:
+            return False
+
         self.client.publish(
             self.COMMAND_TOPIC,
             payload=bytes([control_cmd]),
             qos=2,
         )
+        return True
 
     def get_breakwire_status(self) -> dict[str, BreakwireStatus]:
         with self._breakwire_lock:
@@ -70,5 +105,8 @@ class ControlPublisher:
             self._breakwire_status = cast(BreakwireStatus, status)
 
     def shutdown(self) -> None:
+        if self.client is None:
+            return
+
         self.client.loop_stop()
         self.client.disconnect()
