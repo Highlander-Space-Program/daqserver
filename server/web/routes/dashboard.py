@@ -291,3 +291,16 @@ async def delete_sensor(sensor_id: str):
         del graphs[graph_id]
 
     return {"success": True, "id": sensor_id}
+
+@router.delete("/api/graphs/{graph_id}")
+async def delete_graph(graph_id: str):
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            "DELETE FROM graphs where id = ?",
+            (graph_id,),
+        )
+        await db.commit()
+
+        if cursor.rowcount == 0:
+            return {"error": "Graph not found"}
+    return {"Success": True, "id": graph_id}

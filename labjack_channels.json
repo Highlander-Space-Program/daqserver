@@ -12,58 +12,5 @@
         "SensorType": "Pressure",
         "Differential": false,
         "Board": "T7"
-    },
-    {
-        "Type": "AIN",
-        "AIN": "AIN82",
-        "SensorType": "Pressure",
-        "Differential": false,
-        "Board": "T7"
-    },
-     {
-        "Type": "AIN",
-        "AIN": "AIN83",
-        "SensorType": "Pressure",
-        "Differential": false,
-        "Board": "T7"
-    },
-    {
-        "Type": "AIN",
-        "AIN": "AIN48",
-        "NegativeAIN": "AIN56",
-        "SensorType": "Thermocouple",
-        "Differential": true,
-        "Board": "T7"
-    },
-    {
-        "Type": "AIN",
-        "AIN": "AIN49",
-        "NegativeAIN": "AIN57",
-        "SensorType": "Thermocouple",
-        "Differential": true,
-        "Board": "T7"
-    },
-    {
-        "Type": "AIN",
-        "AIN": "AIN50",
-        "NegativeAIN": "AIN58",
-        "SensorType": "Thermocouple",
-        "Differential": true,
-        "Board": "T7"
-    },
-    {
-        "Type": "AIN",
-        "AIN": "AIN52",
-        "NegativeAIN": "AIN60",
-        "SensorType": "Loadcell",
-        "Differential": true,
-        "Board": "T7"
-    },
-    {
-        "Type": "AIN",
-        "AIN": "AIN900",
-        "SensorType": "Thermocouple",
-        "Differential": false,
-        "Board": "T8"
     }
 ]

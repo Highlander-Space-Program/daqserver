@@ -11,6 +11,7 @@ let activeLeftTab = "sensors";
 let editingSensorId = null;
 let editingEquationId = null;
 let currentGraphPage = 0;
+let selectedValueGraphIds = [null, null, null];
 const GRAPHS_PER_PAGE = 10;
 
 const chartInstances = {};

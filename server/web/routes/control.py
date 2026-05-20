@@ -1,3 +1,4 @@
+from server.streaming import stream
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
 from starlette.responses import HTMLResponse
@@ -26,3 +27,19 @@ async def get_breakwire_status(request: Request):
 async def send_control_command(request: Request, payload: ControlCommand):
     request.app.state.control_publisher.send_command(payload.command)
     return {"success": True}
+
+@router.post("/api/sensors/{sensor_id}/tare")
+async def tare_sensor(sensor_id: str):
+    print(f"Tare requested for sensor: {sensor_id}")
+
+    if stream.labjack_instance is None:
+        return {
+            "status": "error",
+            "message": "LabJack not initialized"
+        }
+    stream.labjack_instance.tare({}, "")
+
+    return {
+        "status": "ok",
+        "sensor_id": sensor_id
+    }

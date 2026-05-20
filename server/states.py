@@ -3,13 +3,7 @@ from server.streaming.sensors import T7ID, InputId, TestID
 PORT_OPTIONS: dict[str, InputId] = {
     "PT-1": T7ID(4, 8),
     "PT-2": T7ID(4, 9),
-    "PT-3": T7ID(4, 10),
-    "PT-4": T7ID(4, 11),
-    "TC-1": T7ID(3, 0),
-    "TC-2": T7ID(3, 1),
-    "TC-3": T7ID(3, 2),
-    "LC-1": T7ID(3, 4),
-    "test": TestID(),
+    "test": TestID()
 }
 
 DB_PATH = "daq_ui.db"

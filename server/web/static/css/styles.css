@@ -238,15 +238,39 @@ body {
     gap: 14px;
 }
 
+body.graph-zoom-open {
+    overflow: hidden;
+}
+
 .graph-panel {
     background: var(--panel);
     border: 1px solid var(--border);
     min-height: 330px;
     padding: 12px;
+    min-width: 0;
+}
+
+.graph-panel-expanded {
+    grid-column: 1 / -1;
+    min-height: 700px;
+}
+
+.sensor-modal-actions {
+    justify-content: space-between;
 }
 
 .graph-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
     margin-bottom: 10px;
+}
+
+.item-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
 }
 
 .graph-title {
@@ -256,6 +280,18 @@ body {
 
 .chart-wrap {
     height: 260px;
+    min-width: 0;
+    position: relative;
+}
+
+.chart-wrap canvas {
+    width: 100% !important;
+    height: 100% !important;
+    display: block;
+}
+
+.graph-panel-expanded .chart-wrap {
+    height: 620px;
 }
 
 .skeleton-graph {
@@ -357,8 +393,11 @@ label {
 }
 
 .form-actions {
+    width: 100%;
     display: flex;
-    justify-content: flex-end;
+    justify-content: space-between;
+    align-items: center;
+
 }
 
 .hidden {
