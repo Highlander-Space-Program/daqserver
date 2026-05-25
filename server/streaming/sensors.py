@@ -5,6 +5,7 @@ import json
 from datetime import datetime
 from typing import List, Optional, Self, override
 
+
 class InputId(ABC):
     @abstractmethod
     def to_dict(self) -> dict:
@@ -34,41 +35,41 @@ class TestID(InputId):
 @dataclass
 class T7ID(InputId):
     mux_number: int
-    ain: int
+    cb37_pin: str
     sensor_type: str = "T7"
 
     @override
     def to_dict(self) -> dict:
         return {
             "mux_number": self.mux_number,
-            "ain": self.ain,
+            "cb37_pin": self.cb37_pin,
             "type": self.sensor_type,
         }
 
     @classmethod
     @override
     def from_dict(cls, dictionary: dict) -> Self:
-        return cls(dictionary["mux_number"], dictionary["ain"])
+        return cls(dictionary["mux_number"], dictionary["cb37_pin"])
 
 
 @dataclass
 class T8ID(InputId):
     mux_number: int
-    ain: int
+    cb37_pin: int
     sensor_type: str = "T8"
 
     @override
     def to_dict(self) -> dict:
         return {
             "mux_number": self.mux_number,
-            "ain": self.ain,
+            "cb37_pin": self.cb37_pin,
             "type": self.sensor_type,
         }
 
     @classmethod
     @override
     def from_dict(cls, dictionary: dict) -> Self:
-        return cls(dictionary["mux_number"], dictionary["ain"])
+        return cls(dictionary["mux_number"], dictionary["cb37_pin"])
 
 
 class DataType(Enum):
@@ -220,4 +221,3 @@ def load_sensors_from_json(
 
     print(f"Loaded {len(sensors)} sensors")
     return sensors
-

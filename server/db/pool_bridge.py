@@ -1,8 +1,8 @@
-import time
 import asyncio
 from influxdb_client_3 import InfluxDBClient3, Point
 from server.pool import Topic
-from server.streaming.sensors import SensorData
+from server.streaming.sensors import SensorData, SensorOutput
+
 
 class PoolBridge:
     def __init__(self, datapool, url, token, database_name):
@@ -52,7 +52,7 @@ class PoolBridge:
         print("PoolBridge started")
 
     # ========== CALLBACK (ASYNC) ==========
-    async def handle_data(self, data:SensorData):
+    async def handle_data(self, data: SensorData):
         """
         Receives datapool events (async callback)
         Converts to Influx Point
@@ -67,7 +67,7 @@ class PoolBridge:
             print("[PoolBridge] error:", e)
 
     # ========== NORMALIZE DATA  ==========
-    def normalize(self, data):
+    def normalize(self, data: SensorData):
         """
         Force all LabJack/SensorData into SensorOutput path only.
         Prevents fallback-to-default measurement bugs.
@@ -84,47 +84,6 @@ class PoolBridge:
             return fallback
         return str(name).lower()
 
-    def from_channels(self, packet: dict):
-        points = []
-
-        base_tags = {k: v for k, v in packet.items() if k != "channels"}
-
-        channels = packet.get("channels", {})
-
-        for ain, ch in channels.items():
-            measurement = (
-                payload.get("measurement")
-                or payload.get("data_type")
-                or "sensor"
-            )
-            point = Point(measurement)
-
-            # identity schema
-            self.apply_identity_tags(
-                point,
-                {
-                    "device": base_tags.get("device"),
-                    "location": base_tags.get("location"),
-                    "channel": ain,
-                    "mux_number": ch.get("mux_number"),
-                    "ain": ain,
-                },
-            )
-
-            # field standardization
-            if "value" in ch and isinstance(ch["value"], (int, float)):
-                point.field("value", ch["value"])
-            elif "voltage" in ch and isinstance(ch["voltage"], (int, float)):
-                point.field("value", ch["voltage"])
-
-            # optional timestamp
-            if "timestamp" in base_tags:
-                self.apply_timestamp(point, base_tags["timestamp"])
-
-            points.append(point)
-
-        return points
-
     def apply_identity_tags(self, point, tags: dict):
         """
         Apply standardized identity tags to an Influx Point.
@@ -136,7 +95,7 @@ class PoolBridge:
             point.tag(str(key), str(value))
 
     # ========== SENSOR OUTPUT FORMAT ==========
-    def from_sensor_output(self, sensor_output):
+    def from_sensor_output(self, sensor_output: SensorOutput):
         points = []
 
         source = sensor_output.source.to_dict()
@@ -145,7 +104,9 @@ class PoolBridge:
         for entry in sensor_output.data:
             point = Point(measurement)
 
-            self.apply_identity_tags(point, {k: str(v) for k, v in source.items()})
+            self.apply_identity_tags(
+                point, {k: str(v) for k, v in source.items()}
+            )
 
             point.tag("data_type", sensor_output.data_type.value)
 
