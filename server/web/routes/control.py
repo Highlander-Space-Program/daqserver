@@ -18,14 +18,14 @@ class ControlCommand(BaseModel):
 
 ARM_COMMANDS = {
     "Igniter": 0x0A,
-    "Auto Sequence": 0x0C,
-    "Solenoids": 0x0E,
+    "Auto Ignition": 0x0C,
+    "Servos": 0x0E,
 }
 
 ABORT_COMMANDS = {
     "Igniter": 0x0B,
-    "Auto Sequence": 0x0D,
-    "Solenoids": 0x0F,
+    "Auto Ignition": 0x0D,
+    "Servos": 0x0F,
 }
 
 
@@ -84,7 +84,6 @@ async def get_page(request: Request):
     )
 
 
-# Simulate sensor data
 state = {
     "xbee": {
         "connected": True,
@@ -97,10 +96,10 @@ state = {
         "Solenoid Board": False
     },
     "important_status": {
-        "System": True,
+        # "System": True,
         "Igniter": True,
-        "Solenoids": True,
-        "Auto Sequence": True,
+        "Servos": True,
+        "Auto Ignition": True,
     },
     "solenoids": [],
     "event_log": [],
