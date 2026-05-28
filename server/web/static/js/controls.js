@@ -1,5 +1,5 @@
 async function fetchStatus() {
-    const res = await fetch("/api/status");
+    const res = await fetch("/controls/api/status");
     const data = await res.json();
 
     renderXbee(data.xbee);
@@ -90,17 +90,17 @@ function renderLog(events) {
 }
 
 async function connectXbee() {
-    await fetch("/api/connect", { method: "POST" });
+    await fetch("/controls/api/connect", { method: "POST" });
     fetchStatus();
 }
 
 async function disconnectXbee() {
-    await fetch("/api/disconnect", { method: "POST" });
+    await fetch("/controls/api/disconnect", { method: "POST" });
     fetchStatus();
 }
 
 async function armStatus(name) {
-    await fetch("/api/arm", {
+    await fetch("/controls/api/arm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name })
@@ -109,7 +109,7 @@ async function armStatus(name) {
 }
 
 async function abortStatus(name) {
-    await fetch("/api/abort", {
+    await fetch("/controls/api/abort", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name })
@@ -118,7 +118,7 @@ async function abortStatus(name) {
 }
 
 async function openSolenoid(row) {
-    await fetch("/api/solenoid/open", {
+    await fetch("/controls/api/solenoid/open", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ row })
@@ -127,7 +127,7 @@ async function openSolenoid(row) {
 }
 
 async function closeSolenoid(row) {
-    await fetch("/api/solenoid/close", {
+    await fetch("/controls/api/solenoid/close", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ row })
@@ -136,7 +136,7 @@ async function closeSolenoid(row) {
 }
 
 async function togglePower(row) {
-    await fetch("/api/solenoid/power", {
+    await fetch("/controls/api/solenoid/power", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ row })

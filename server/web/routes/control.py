@@ -16,13 +16,25 @@ from server.web.resources import templates
 class ControlCommand(BaseModel):
     command: int
 
+ARM_COMMANDS = {
+    "Igniter": 0x0A,
+    "Auto Sequence": 0x0C,
+    "Solenoids": 0x0E,
+}
+
+ABORT_COMMANDS = {
+    "Igniter": 0x0B,
+    "Auto Sequence": 0x0D,
+    "Solenoids": 0x0F,
+}
+
 
 router = APIRouter(prefix="/controls", tags=["controls"])
 
 
-@router.get("/", response_class=HTMLResponse)
-async def controls_page(request: Request):
-    return templates.TemplateResponse("controls2.html", {"request": request})
+# @router.get("/", response_class=HTMLResponse)
+# async def controls_page(request: Request):
+#     return templates.TemplateResponse("controls2.html", {"request": request})
 
 
 @router.get("/api/breakwire")
@@ -66,7 +78,7 @@ async def get_page(request: Request):
     return templates.TemplateResponse(
         #request=request,
         #name="frontendview.html",
-        "frontendview.html",
+        "controls.html",
         #context={}
         {"request": request}
     )
@@ -181,18 +193,32 @@ async def disconnect_xbee():
 
 
 @router.post("/api/arm")
-async def arm_status(action: StatusAction):
-    if action.name in state["important_status"]:
-        state["important_status"][action.name] = True
-        log_event(f"{action.name} ARMED")
+async def arm_status(request: Request, action: StatusAction):
+    if action.name not in state["important_status"]:
+        raise HTTPException(status_code=400, detail="Unknown status name")
+
+    command = ARM_COMMANDS.get(action.name)
+    if command is not None:
+        await send_control_command(request, ControlCommand(command=command))
+
+    state["important_status"][action.name] = True
+    log_event(f"{action.name} ARMED")
+
     return {"ok": True}
 
 
 @router.post("/api/abort")
-async def abort_status(action: StatusAction):
-    if action.name in state["important_status"]:
-        state["important_status"][action.name] = False
-        log_event(f"{action.name} ABORTED")
+async def abort_status(request: Request, action: StatusAction):
+    if action.name not in state["important_status"]:
+        raise HTTPException(status_code=400, detail="Unknown status name")
+
+    command = ABORT_COMMANDS.get(action.name)
+    if command is not None:
+        await send_control_command(request, ControlCommand(command=command))
+
+    state["important_status"][action.name] = False
+    log_event(f"{action.name} ABORTED")
+
     return {"ok": True}
 
 
