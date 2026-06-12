@@ -7,13 +7,14 @@ from server.db.influx import init_influx, shutdown_influx
 from server.logger import server_logger as logger
 from server.pool import Datapool
 from server.streaming.stream import init_streaming
-from server.web.app import app, init_db
+from server.web.app import init_app, init_db
 
 
 async def start():
     datapool = Datapool(asyncio.get_running_loop())
 
-    await init_db(datapool)
+    await init_db()
+    app = init_app(datapool)
     init_influx(datapool)
     init_streaming(datapool)
 

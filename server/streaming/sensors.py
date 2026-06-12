@@ -72,6 +72,19 @@ class T8ID(InputId):
         return cls(dictionary["mux_number"], dictionary["cb37_pin"])
 
 
+PORT_OPTIONS: dict[str, InputId] = {
+    "PT-1": T7ID(4, "AIN8"),
+    "PT-2": T7ID(4, "AIN9"),
+    "PT-3": T7ID(4, "AIN10"),
+    "PT-4": T7ID(4, "AIN11"),
+    "TC-1": T7ID(3, "AIN0"),
+    "TC-2": T7ID(3, "AIN1"),
+    "TC-3": T7ID(3, "AIN2"),
+    "LC-1": T7ID(3, "AIN4"),
+    "test": TestID(),
+}
+
+
 class DataType(Enum):
     TC = "thermocouple"
     PT = "pressuretransducer"

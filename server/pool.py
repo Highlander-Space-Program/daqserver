@@ -10,6 +10,7 @@ from server.streaming.sensors import SensorData, DataType
 
 class Topic(Enum):
     SENSORDATA = "SENSORDATA"
+    SWITCHCOM = "SWITCHCOM"
 
 
 class DenoiseMethod(ABC):
@@ -87,7 +88,7 @@ class Datapool:
 
         self.subscribers[topic.value].add(callback)
 
-    def publish(self, topic: Topic, data: SensorData):
+    def publish(self, topic: Topic, data):
         """
         Synchronously publishes data to a topic.
         Schedules the async subscribers to execute on the provided event loop.

@@ -1,18 +1,47 @@
-from server.streaming.sensors import T7ID, InputId, TestID
+DB_PATH = "daq_ui.db"
 
-PORT_OPTIONS: dict[str, InputId] = {
-    "PT-1": T7ID(4, "AIN8"),
-    "PT-2": T7ID(4, "AIN9"),
-    "PT-3": T7ID(4, "AIN10"),
-    "PT-4": T7ID(4, "AIN11"),
-    "TC-1": T7ID(3, "AIN0"),
-    "TC-2": T7ID(3, "AIN1"),
-    "TC-3": T7ID(3, "AIN2"),
-    "LC-1": T7ID(3, "AIN4"),
-    "test": TestID(),
+SWITCH_MAPPING = {
+    # Port P1 Mappings
+    "EI00": {"switch": "S0", "psu": "P1"},
+    "EI01": {"switch": "S1", "psu": "P1"},
+    "EI02": {"switch": "S2", "psu": "P1"},
+    "EI03": {"switch": "S3", "psu": "P1"},
+    "EI04": {"switch": "S4", "psu": "P1"},
+    "EI05": {"switch": "S5", "psu": "P1"},
+    "EI06": {"switch": "S6", "psu": "P1"},
+    "EI07": {"switch": "S7", "psu": "P1"},
+    "CI00": {"switch": "S8", "psu": "P1"},
+    "CI01": {"switch": "S9", "psu": "P1"},
+    "CI02": {"switch": "S10", "psu": "P1"},
+    "CI03": {"switch": "S11", "psu": "P1"},
+    # psu P2 Mappings
+    "FI00": {"switch": "S0", "psu": "P2"},
+    "FI01": {"switch": "S1", "psu": "P2"},
+    "FI02": {"switch": "S2", "psu": "P2"},
+    "FI03": {"switch": "S3", "psu": "P2"},
+    "FI04": {"switch": "S4", "psu": "P2"},
+    "FI05": {"switch": "S5", "psu": "P2"},
+    "FI06": {"switch": "S6", "psu": "P2"},
+    "FI07": {"switch": "S7", "psu": "P2"},
+    "DAC0": {"switch": "S8", "psu": "P2"},
+    "DAC1": {"switch": "S9", "psu": "P2"},
+    "MI00": {"switch": "S10", "psu": "P2"},
+    "MI01": {"switch": "S11", "psu": "P2"},
+    # psu P3 Mappings
+    "DI0": {"switch": "S0", "psu": "P3"},
+    "DI1": {"switch": "S1", "psu": "P3"},
+    "DI2": {"switch": "S2", "psu": "P3"},
+    "DI3": {"switch": "S3", "psu": "P3"},
+    "DI4": {"switch": "S4", "psu": "P3"},
+    "DI5": {"switch": "S5", "psu": "P3"},
+    "DI6": {"switch": "S6", "psu": "P3"},
+    "DI7": {"switch": "S7", "psu": "P3"},
+    "DI8": {"switch": "S8", "psu": "P3"},
+    "DI9": {"switch": "S9", "psu": "P3"},
+    "DI10": {"switch": "S10", "psu": "P3"},
+    "DI11": {"switch": "S11", "psu": "P3"},
 }
 
-DB_PATH = "daq_ui.db"
 
 PIN_MAPPING = {
     # --- AIN13 row ---

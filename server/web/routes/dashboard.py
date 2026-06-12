@@ -5,7 +5,8 @@ import aiosqlite
 from aiosqlite import Connection
 from fastapi import APIRouter, Depends, Request, WebSocket, WebSocketDisconnect
 from starlette.responses import HTMLResponse
-from server.states import DB_PATH, PORT_OPTIONS
+from server.states import DB_PATH
+from server.streaming.sensors import PORT_OPTIONS
 from server.web.resources import manager, templates
 from server.web.connection import ErrorMessage
 
@@ -44,6 +45,32 @@ async def get_equations_from_db(db: Connection):
         rows = await cursor.fetchall()
 
     return [{"id": row[0], "name": row[1], "expression": row[2]} for row in rows]
+
+
+async def init_db(db):
+    await db.execute("""
+        CREATE TABLE IF NOT EXISTS equations (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            expression TEXT NOT NULL
+        )
+    """)
+
+    await db.execute("""
+        CREATE TABLE IF NOT EXISTS sensors (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            port TEXT NOT NULL,
+            equation_id TEXT
+        )
+    """)
+    await db.execute("""
+        CREATE TABLE IF NOT EXISTS graphs (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            sensor_id TEXT NOT NULL
+        )
+    """)
 
 
 async def get_sensors_from_db(db: Connection):
@@ -291,6 +318,7 @@ async def delete_sensor(sensor_id: str):
         del graphs[graph_id]
 
     return {"success": True, "id": sensor_id}
+
 
 @router.delete("/api/graphs/{graph_id}")
 async def delete_graph(graph_id: str):
