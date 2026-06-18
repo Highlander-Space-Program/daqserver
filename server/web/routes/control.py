@@ -17,15 +17,25 @@ class ControlCommand(BaseModel):
     command: int
 
 ARM_COMMANDS = {
-    "Igniter": 0x0A,
-    "Auto Ignition": 0x0C,
-    "Servos": 0x0E,
+    "Igniter": 0x00,
+    "Auto Ignition": 0x02,
+    "Servos": 0x04,
+    "Servo_1": 0x06,
+    "Servo_2": 0x08,
+    "Servo_3": 0x0A,
+    "Igniter_Actual": 0x0C, #not system flag
+    "LED": 0x0F
 }
 
 ABORT_COMMANDS = {
-    "Igniter": 0x0B,
-    "Auto Ignition": 0x0D,
-    "Servos": 0x0F,
+    "Igniter": 0x01,
+    "Auto Ignition": 0x03,
+    "Servos": 0x05,
+    "Servo_1": 0x07,
+    "Servo_2": 0x09,
+    "Servo_3": 0x0B,
+    "Igniter_Actual": 0x0D, #not system flag
+    "LED": 0x0E
 }
 
 
