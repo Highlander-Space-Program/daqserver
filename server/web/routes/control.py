@@ -11,6 +11,7 @@ from datetime import datetime
 
 from server.web.resources import templates
 
+
 router = APIRouter(tags=["controls"])
 
 
