@@ -43,9 +43,9 @@ function renderImportant(items) {
         body.innerHTML += `
             <tr>
                 <td>${name}</td>
-                <td><span class="status-box ${armed ? "green" : "red"}">${armed ? "READY" : "OFF"}</span></td>
-                <td><button onclick="armStatus('${name}')">Fire</button></td>
-                <td><button onclick="abortStatus('${name}')">Turn Off</button></td>
+                <td><span class="status-box ${armed ? "green" : "red"}">${armed ? "ARMED" : "DISARMED"}</span></td>
+                <td><button onclick="armStatus('${name}')">Arm</button></td>
+                <td><button onclick="abortStatus('${name}')">Disarm</button></td>
             </tr>
         `;
     });

@@ -31,7 +31,7 @@ state = {
         "Servo Board": False,
     },
     "important_status": {
-        "System": True,
+        #"System": True,
         "Igniter": True,
         "Servos": True,
         "Auto Sequence": True,
