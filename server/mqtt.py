@@ -1,6 +1,6 @@
 import os
 from threading import Lock
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
 import paho.mqtt.client as mqtt
 
@@ -12,7 +12,10 @@ BreakwireStatus = Literal["unknown", "connected", "broken"]
 class ControlPublisher:
     BREAKWIRE_TOPIC = "device/breakwire"
     COMMAND_TOPIC = "device/command"
-    VALID_BREAKWIRE_STATUSES = {"connected", "broken"}
+    BREAKWIRE_PAYLOAD_STATUSES: dict[bytes, BreakwireStatus] = {
+        bytes([0x10]): "connected",
+        bytes([0x11]): "broken",
+    }
 
     def __init__(self) -> None:
         self._breakwire_status: BreakwireStatus = "unknown"
@@ -93,16 +96,12 @@ class ControlPublisher:
         if msg.topic != self.BREAKWIRE_TOPIC:
             return
 
-        try:
-            status = msg.payload.decode("utf-8").strip().lower()
-        except UnicodeDecodeError:
-            return
-
-        if status not in self.VALID_BREAKWIRE_STATUSES:
+        status = self.BREAKWIRE_PAYLOAD_STATUSES.get(msg.payload)
+        if status is None:
             return
 
         with self._breakwire_lock:
-            self._breakwire_status = cast(BreakwireStatus, status)
+            self._breakwire_status = status
 
     def shutdown(self) -> None:
         if self.client is None:

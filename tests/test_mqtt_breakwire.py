@@ -23,7 +23,7 @@ def publish_breakwire_payload(
 def test_breakwire_connected_sets_status():
     publisher = make_publisher()
 
-    publish_breakwire_payload(publisher, b"connected")
+    publish_breakwire_payload(publisher, bytes([0x10]))
 
     assert publisher.get_breakwire_status() == {"status": "connected"}
 
@@ -31,24 +31,34 @@ def test_breakwire_connected_sets_status():
 def test_breakwire_broken_sets_status():
     publisher = make_publisher()
 
-    publish_breakwire_payload(publisher, b"broken")
+    publish_breakwire_payload(publisher, bytes([0x11]))
 
     assert publisher.get_breakwire_status() == {"status": "broken"}
 
 
-def test_breakwire_status_normalizes_whitespace_and_case():
+def test_text_breakwire_payload_does_not_change_status():
     publisher = make_publisher()
+    publish_breakwire_payload(publisher, bytes([0x10]))
 
-    publish_breakwire_payload(publisher, b" Connected ")
+    publish_breakwire_payload(publisher, b"connected")
 
     assert publisher.get_breakwire_status() == {"status": "connected"}
 
 
 def test_invalid_breakwire_payload_does_not_change_status():
     publisher = make_publisher()
-    publish_breakwire_payload(publisher, b"connected")
+    publish_breakwire_payload(publisher, bytes([0x10]))
 
-    publish_breakwire_payload(publisher, b"offline")
+    publish_breakwire_payload(publisher, bytes([0x12]))
+
+    assert publisher.get_breakwire_status() == {"status": "connected"}
+
+
+def test_multi_byte_breakwire_payload_does_not_change_status():
+    publisher = make_publisher()
+    publish_breakwire_payload(publisher, bytes([0x10]))
+
+    publish_breakwire_payload(publisher, bytes([0x10, 0x11]))
 
     assert publisher.get_breakwire_status() == {"status": "connected"}
 
@@ -56,7 +66,7 @@ def test_invalid_breakwire_payload_does_not_change_status():
 def test_non_breakwire_topic_does_not_change_status():
     publisher = make_publisher()
 
-    publish_breakwire_payload(publisher, b"broken", topic="device/other")
+    publish_breakwire_payload(publisher, bytes([0x11]), topic="device/other")
 
     assert publisher.get_breakwire_status() == {"status": "unknown"}
 

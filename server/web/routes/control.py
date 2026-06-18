@@ -1,3 +1,4 @@
+import asyncio
 from server.streaming import stream
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
@@ -15,9 +16,9 @@ ARM_COMMANDS = {
     "Igniter": 0x00,
     "Auto Ignition": 0x02,
     "Servos": 0x04,
-    "Servo_1": 0x06,
-    "Servo_2": 0x08,
-    "Servo_3": 0x0A,
+    "Servo 1": 0x06,
+    "Servo 2": 0x08,
+    "Servo 3": 0x0A,
     "Igniter_Actual": 0x0C, #not system flag
     "LED": 0x0F
 }
@@ -26,12 +27,15 @@ ABORT_COMMANDS = {
     "Igniter": 0x01,
     "Auto Ignition": 0x03,
     "Servos": 0x05,
-    "Servo_1": 0x07,
-    "Servo_2": 0x09,
-    "Servo_3": 0x0B,
+    "Servo 1": 0x07,
+    "Servo 2": 0x09,
+    "Servo 3": 0x0B,
     "Igniter_Actual": 0x0D, #not system flag
     "LED": 0x0E
 }
+
+LED_BLINK_COUNT = 3
+LED_BLINK_DELAY_SECONDS = 0.25
 
 
 router = APIRouter(prefix="/controls", tags=["controls"])
@@ -113,9 +117,6 @@ state = {
     "igniter": {
         "status": "OFF"
     },
-    "breakwire": {
-        "connected": False
-    },
     "event_log": []
 }
 
@@ -134,9 +135,25 @@ class ServoAction(BaseModel):
     row: int
 
 
+def get_servo(row: int):
+    if not 0 <= row < len(state["servos"]):
+        raise HTTPException(status_code=400, detail="Invalid servo row")
+
+    return state["servos"][row]
+
+
 @router.get("/api/status")
-async def get_status():
-    return state
+async def get_status(request: Request):
+    breakwire_status = (
+        request.app.state.control_publisher.get_breakwire_status()["status"]
+    )
+    return {
+        **state,
+        "breakwire": {
+            "status": breakwire_status,
+            "connected": breakwire_status == "connected",
+        },
+    }
 
 
 @router.post("/api/connect")
@@ -198,46 +215,71 @@ async def abort_status(request: Request, action: StatusAction):
 
 
 @router.post("/api/servo/open")
-async def open_servo(action: ServoAction):
-    row = action.row
-    if 0 <= row < 3:
-        state["servos"][row]["status"] = "OPEN"
-        log_event(f"Servo {row + 1} OPEN")
+async def open_servo(request: Request, action: ServoAction):
+    servo = get_servo(action.row)
+    if servo["status"] == "OPEN":
+        return {"ok": True}
+
+    command = ARM_COMMANDS.get(servo["name"])
+    await send_control_command(request, ControlCommand(command=command))
+
+    servo["status"] = "OPEN"
+    log_event(f"Servo {action.row + 1} OPEN")
     return {"ok": True}
 
 
 @router.post("/api/servo/close")
-async def close_servo(action: ServoAction):
-    row = action.row
-    if 0 <= row < 3:
-        state["servos"][row]["status"] = "CLOSED"
-        log_event(f"Servo {row + 1} CLOSED")
+async def close_servo(request: Request, action: ServoAction):
+    servo = get_servo(action.row)
+    if servo["status"] == "CLOSED":
+        return {"ok": True}
+
+    command = ABORT_COMMANDS.get(servo["name"])
+    await send_control_command(request, ControlCommand(command=command))
+
+    servo["status"] = "CLOSED"
+    log_event(f"Servo {action.row + 1} CLOSED")
     return {"ok": True}
 
 
 @router.post("/api/igniter/fire")
-async def fire_igniter():
+async def fire_igniter(request: Request):
+
+    if state["igniter"]["status"] != "ON":
+        command = ARM_COMMANDS.get("Igniter_Actual")
+        await send_control_command(request, ControlCommand(command=command))
+
     state["igniter"]["status"] = "ON"
     log_event("Igniter FIRED")
     return {"ok": True}
 
 
 @router.post("/api/igniter/shutoff")
-async def shutoff_igniter():
+async def shutoff_igniter(request: Request):
+
+    if state["igniter"]["status"] != "OFF":
+        command = ABORT_COMMANDS.get("Igniter_Actual")
+        await send_control_command(request, ControlCommand(command=command))
+
     state["igniter"]["status"] = "OFF"
     log_event("Igniter SHUT OFF")
     return {"ok": True}
 
 
 @router.post("/api/ping")
-async def ping_board():
-    log_event("Ping sent to board")
+async def ping_board(request: Request):
+    for _ in range(LED_BLINK_COUNT):
+        await send_control_command(
+            request,
+            ControlCommand(command=ARM_COMMANDS["LED"]),
+        )
+        await asyncio.sleep(LED_BLINK_DELAY_SECONDS)
+        await send_control_command(
+            request,
+            ControlCommand(command=ABORT_COMMANDS["LED"]),
+        )
+        await asyncio.sleep(LED_BLINK_DELAY_SECONDS)
+
+    log_event("Ping blink sent to board")
     return {"ok": True, "message": "Ping sent"}
 
-
-@router.post("/api/breakwire/toggle")
-async def toggle_breakwire():
-    state["breakwire"]["connected"] = not state["breakwire"]["connected"]
-    status = "CONNECTED" if state["breakwire"]["connected"] else "DISCONNECTED"
-    log_event(f"Breakwire {status}")
-    return {"ok": True}

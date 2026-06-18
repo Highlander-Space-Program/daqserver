@@ -76,10 +76,18 @@ function renderIgniter(igniter) {
 
 function renderBreakwire(breakwire) {
     const status = document.getElementById("breakwire-status");
+    const breakwireStatus = breakwire.status;
 
-    const connected = breakwire.connected;
-    status.textContent = connected ? "CONNECTED" : "DISCONNECTED";
-    status.className = "status-box " + (connected ? "green" : "red");
+    if (breakwireStatus === "connected") {
+        status.textContent = "CONNECTED";
+        status.className = "status-box green";
+    } else if (breakwireStatus === "broken") {
+        status.textContent = "BROKEN";
+        status.className = "status-box red";
+    } else {
+        status.textContent = "UNKNOWN";
+        status.className = "status-box gray";
+    }
 }
 
 function renderLog(events) {
@@ -145,11 +153,6 @@ async function shutoffIgniter() {
 
 async function pingBoard() {
     await fetch("/controls/api/ping", { method: "POST" });
-    fetchStatus();
-}
-
-async function toggleBreakwire() {
-    await fetch("/controls/api/breakwire/toggle", { method: "POST" });
     fetchStatus();
 }
 
