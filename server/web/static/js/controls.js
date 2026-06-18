@@ -5,10 +5,9 @@ async function fetchStatus() {
     renderXbee(data.xbee);
     renderBoards(data.boards);
     renderImportant(data.important_status);
-    renderSensors("tc-body", "TC", data.sensors.tc);
-    renderSensors("lc-body", "LC", data.sensors.lc);
-    renderSensors("pt-body", "PT", data.sensors.pt);
-    renderSolenoids(data.solenoids);
+    renderServos(data.servos);
+    renderIgniter(data.igniter);
+    renderBreakwire(data.breakwire);
     renderLog(data.event_log);
 }
 
@@ -46,42 +45,41 @@ function renderImportant(items) {
                 <td>${name}</td>
                 <td><span class="status-box ${armed ? "green" : "red"}">${armed ? "ARMED" : "DISARMED"}</span></td>
                 <td><button onclick="armStatus('${name}')">Arm</button></td>
-                <td><button onclick="abortStatus('${name}')">Abort</button></td>
+                <td><button onclick="abortStatus('${name}')">Disarm</button></td>
             </tr>
         `;
     });
 }
 
-function renderSensors(bodyId, label, values) {
-    const body = document.getElementById(bodyId);
+function renderServos(servos) {
+    const body = document.getElementById("servo-body");
     body.innerHTML = "";
 
-    values.forEach((value, index) => {
+    servos.forEach((servo, index) => {
         body.innerHTML += `
             <tr>
-                <td>${label}${index + 1}</td>
-                <td>${value}</td>
+                <td>${servo.name}</td>
+                <td><span class="status-box ${servo.status === "OPEN" ? "green" : "red"}">${servo.status}</span></td>
+                <td><button onclick="openServo(${index})">Open</button></td>
+                <td><button onclick="closeServo(${index})">Close</button></td>
             </tr>
         `;
     });
 }
 
-function renderSolenoids(solenoids) {
-    const body = document.getElementById("solenoid-body");
-    body.innerHTML = "";
+function renderIgniter(igniter) {
+    const status = document.getElementById("igniter-status");
 
-    solenoids.forEach((solenoid, index) => {
-        body.innerHTML += `
-            <tr>
-                <td>${solenoid.valve}</td>
-                <td><span class="status-box ${solenoid.status === "OPEN" ? "green" : "red"}">${solenoid.status}</span></td>
-                <td><button onclick="openSolenoid(${index})">Open</button></td>
-                <td><button onclick="closeSolenoid(${index})">Close</button></td>
-                <td><span class="status-box ${solenoid.power === "CONNECTED" ? "green" : "red"}">${solenoid.power}</span></td>
-                <td><button onclick="togglePower(${index})">${solenoid.power === "CONNECTED" ? "ON" : "OFF"}</button></td>
-            </tr>
-        `;
-    });
+    status.textContent = igniter.status;
+    status.className = "status-box " + (igniter.status === "ON" ? "green" : "red");
+}
+
+function renderBreakwire(breakwire) {
+    const status = document.getElementById("breakwire-status");
+
+    const connected = breakwire.connected;
+    status.textContent = connected ? "CONNECTED" : "DISCONNECTED";
+    status.className = "status-box " + (connected ? "green" : "red");
 }
 
 function renderLog(events) {
@@ -117,8 +115,8 @@ async function abortStatus(name) {
     fetchStatus();
 }
 
-async function openSolenoid(row) {
-    await fetch("/controls/api/solenoid/open", {
+async function openServo(row) {
+    await fetch("/controls/api/servo/open", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ row })
@@ -126,8 +124,8 @@ async function openSolenoid(row) {
     fetchStatus();
 }
 
-async function closeSolenoid(row) {
-    await fetch("/controls/api/solenoid/close", {
+async function closeServo(row) {
+    await fetch("/controls/api/servo/close", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ row })
@@ -135,19 +133,30 @@ async function closeSolenoid(row) {
     fetchStatus();
 }
 
-async function togglePower(row) {
-    await fetch("/controls/api/solenoid/power", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ row })
-    });
+async function fireIgniter() {
+    await fetch("/controls/api/igniter/fire", { method: "POST" });
+    fetchStatus();
+}
+
+async function shutoffIgniter() {
+    await fetch("/controls/api/igniter/shutoff", { method: "POST" });
+    fetchStatus();
+}
+
+async function pingBoard() {
+    await fetch("/controls/api/ping", { method: "POST" });
+    fetchStatus();
+}
+
+async function toggleBreakwire() {
+    await fetch("/controls/api/breakwire/toggle", { method: "POST" });
     fetchStatus();
 }
 
 fetchStatus();
 setInterval(fetchStatus, 2000);
 
-// const client = mqtt.connect("mqtt://localhost:1883");
+// MQTT test connection
 const client = mqtt.connect("ws://localhost:9001");
 
 client.on("connect", () => {

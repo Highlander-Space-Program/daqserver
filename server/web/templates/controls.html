@@ -78,74 +78,56 @@
 
             </div>
 
-            <!-- Bottom row -->
-            <div class="bottom-row">
+           <!-- Bottom row -->
+<div class="bottom-row launch-row">
+    <section class="panel">
+        <div class="panel-title">Servo Controls</div>
 
-                <section class="panel">
-                    <div class="panel-title">Thermocouples (°F)</div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Servo</th>
+                    <th>Status</th>
+                    <th>Open</th>
+                    <th>Close</th>
+                </tr>
+            </thead>
+            <tbody id="servo-body"></tbody>
+        </table>
+    </section>
 
-                    <table class="sensor-table">
-                        <thead>
-                            <tr>
-                                <th>TC</th>
-                                <th>Value (°F)</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tc-body"></tbody>
-                    </table>
-                </section>
+    <section class="panel">
+        <div class="panel-title">Igniter Controls</div>
 
-                <section class="panel">
-                    <div class="panel-title">Load Cells (lbs)</div>
-
-                    <table class="sensor-table">
-                        <thead>
-                            <tr>
-                                <th>LC</th>
-                                <th>Value (lbs)</th>
-                            </tr>
-                        </thead>
-                        <tbody id="lc-body"></tbody>
-                    </table>
-                </section>
-
-                <section class="panel">
-                    <div class="panel-title">Pressure Transducers (PSI)</div>
-
-                    <table class="sensor-table">
-                        <thead>
-                            <tr>
-                                <th>PT</th>
-                                <th>Value (PSI)</th>
-                            </tr>
-                        </thead>
-                        <tbody id="pt-body"></tbody>
-                    </table>
-                </section>
-
-                <section class="panel">
-                    <div class="panel-title">Solenoid Board</div>
-
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Valve</th>
-                                <th>Status</th>
-                                <th>Open</th>
-                                <th>Close</th>
-                                <th>Power</th>
-                                <th>Toggle</th>
-                            </tr>
-                        </thead>
-                        <tbody id="solenoid-body"></tbody>
-                    </table>
-                </section>
-
+        <div class="igniter-box">
+            <div>
+                Status:
+                <span id="igniter-status" class="status-box red">OFF</span>
             </div>
+
+            <button class="danger-btn" onclick="fireIgniter()">Fire Igniter</button>
+            <button onclick="shutoffIgniter()">Shut-off Igniter</button>
+        </div>
+    </section>
+
+    <section class="panel">
+        <div class="panel-title">Board Check</div>
+
+        <div class="igniter-box">
+            <button onclick="pingBoard()">Ping Board</button>
+
+            <div>
+                Breakwire:
+                <span id="breakwire-status" class="status-box red">DISCONNECTED</span>
+            </div>
+
+            <button onclick="toggleBreakwire()">Toggle Breakwire</button>
+        </div>
+    </section>
+
+</div>
+
         </div>
     </div>
 
-    <script src="{{ url_for('static', path='js/lib/mqtt.js') }}"></script>
     <script src="{{ url_for('static', path='js/controls.js') }}"></script>
-</body>
-</html>
