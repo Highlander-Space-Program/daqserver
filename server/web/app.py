@@ -8,8 +8,8 @@ from server.states import DB_PATH
 from server.web.resources import pass_to_frontend
 from server.web.routes import dashboard, control, camera, switch
 
-from contextlib import asynccontextmanager
 from server.mqtt import ControlPublisher
+
 
 def init_app(datapool: Datapool):
     datapool.subscribe(Topic.SENSORDATA, pass_to_frontend)
@@ -18,10 +18,10 @@ def init_app(datapool: Datapool):
     async def lifespan(app: FastAPI):
         app.state.datapool = datapool
         app.state.control_publisher = ControlPublisher()
-        try:
-            yield
-        finally:
-            app.state.control_publisher.shutdown()
+
+        yield
+
+        app.state.control_publisher.shutdown()
         # cleanup if needed
 
     app = FastAPI(lifespan=lifespan)
