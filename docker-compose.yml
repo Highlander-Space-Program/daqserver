@@ -72,7 +72,7 @@ services:
   #    - influxdb3-core
   #  environment:
   #    INFLUX_URL: http://influxdb3-core:8181
-  #    INFLUX_TOKEN: ${INFLUXDB_TOKEN}  
+  #    INFLUX_TOKEN: ${INFLUXDB_TOKEN}
   #    INFLUX_DATABASE: daqDB
   #    MQTT_HOST: mosquitto
   #    MQTT_PORT: 1883
@@ -80,20 +80,20 @@ services:
   #  networks:
   #    - daq-net
 
-  server:
-    build: .
-    container_name: daq-server
-    env_file:
-      - .env
-    ports:
-      - 8000:8000
-    depends_on:
-      - mosquitto
-      - influxdb3-core
-    volumes:
-      - ./labjack_channels.json:/app/labjack_channels.json
-    networks:
-      - daq-net
+  #server:
+  #  build: .
+  #  container_name: daq-server
+  #  env_file:
+  #    - .env
+  #  ports:
+  #    - 8000:8000
+  #  depends_on:
+  #    - mosquitto
+  #    - influxdb3-core
+  #  volumes:
+  #    - ./labjack_channels.json:/app/labjack_channels.json
+  #  networks:
+  #    - daq-net
 
 volumes:
   influxdb3_data:
