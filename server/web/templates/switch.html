@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DAQ Switch Controller</title>
+    <style>
+      /* Base & Dark Theme Styles */
+      body {
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+        display: flex;
+        margin: 0;
+        padding: 20px;
+        gap: 20px;
+        background-color: #121212;
+        color: #e0e0e0;
+      }
+
+      #blocklyDiv {
+        height: 65vh;
+        min-height: 400px;
+        width: 60%;
+        border: 1px solid #444;
+        border-radius: 8px;
+        overflow: hidden; /* Keeps blockly rounded */
+      }
+
+      #sidebar {
+        width: 40%;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+
+      .panel {
+        padding: 15px;
+        border: 1px solid #333;
+        border-radius: 8px;
+        background: #1e1e1e;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+      }
+
+      h3 {
+        margin-top: 0;
+        color: #ffffff;
+        border-bottom: 1px solid #333;
+        padding-bottom: 8px;
+        font-size: 1.1rem;
+      }
+
+      .switch-indicator {
+        display: flex;
+        align-items: center;
+        margin-bottom: 10px;
+        font-weight: 500;
+      }
+
+      .dot {
+        height: 14px;
+        width: 14px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 12px;
+        background-color: #ff5252; /* Dark theme friendly red */
+        box-shadow: 0 0 5px rgba(255, 82, 82, 0.4);
+      }
+
+      .dot.on {
+        background-color: #69f0ae; /* Dark theme friendly green */
+        box-shadow: 0 0 5px rgba(105, 240, 174, 0.4);
+      }
+
+      button {
+        padding: 12px 16px; /* Larger tap targets for mobile */
+        cursor: pointer;
+        margin-top: 5px;
+        background-color: #333;
+        color: #fff;
+        border: 1px solid #555;
+        border-radius: 6px;
+        font-weight: bold;
+        transition: background-color 0.2s;
+      }
+
+      button:hover {
+        background-color: #444;
+      }
+
+      .trigger-btn {
+        background-color: #2e7d32;
+        border: none;
+        width: 100%;
+        margin-bottom: 10px;
+      }
+
+      .trigger-btn:hover {
+        background-color: #388e3c;
+      }
+
+      p {
+        color: #aaa;
+        font-size: 0.9rem;
+      }
+
+      /* Mobile Layout Breakpoint */
+      @media (max-width: 768px) {
+        body {
+          flex-direction: column;
+          padding: 10px;
+          gap: 15px;
+        }
+        #blocklyDiv,
+        #sidebar {
+          width: 100%;
+        }
+        #blocklyDiv {
+          height: 50vh; /* Adjust height to leave room for scrolling on phones */
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <script src="{{ url_for('static', path='js/lib/blockly.js') }}"></script>
+
+    <div id="blocklyDiv"></div>
+
+    <div id="sidebar">
+      <div class="panel">
+        <h3>System Controls</h3>
+        <button
+          onclick="saveWorkspace()"
+          style="width: 100%; margin-bottom: 10px"
+        >
+          Save Script
+        </button>
+        <button onclick="refreshTriggers()" style="width: 100%">
+          Scan Workspace
+        </button>
+
+        <div class="load-row">
+          <select id="scriptSelect">
+            <option value="">-- Loading scripts... --</option>
+          </select>
+          <button onclick="loadWorkspace()" style="margin-top: 0">Load</button>
+        </div>
+      </div>
+
+      <div class="panel" id="triggersPanel">
+        <h3>Execution Triggers</h3>
+        <p>Add a "Sequence Trigger" block and scan the workspace.</p>
+        <div id="triggerButtons"></div>
+      </div>
+
+      <div class="panel">
+        <h3>Hardware State</h3>
+        <div id="stateContainer"></div>
+      </div>
+    </div>
+
+    <script>
+      // --- 1. Define Custom Blocks ---
+      Blockly.Blocks["sequence_trigger"] = {
+        init: function () {
+          this.appendDummyInput()
+            .appendField("Sequence:")
+            .appendField(new Blockly.FieldTextInput("My Sequence"), "SEQ_NAME");
+          this.setNextStatement(true, null);
+          this.setColour(120);
+          this.setTooltip(
+            "Attaches to a sequence of blocks. Creates a button in the UI.",
+          );
+        },
+      };
+
+      Blockly.Blocks["switch_start"] = {
+        init: function () {
+          this.appendDummyInput()
+            .appendField("Start Switch #")
+            .appendField(new Blockly.FieldNumber(0, 0), "SWITCH_NUM");
+          this.setPreviousStatement(true, null);
+          this.setNextStatement(true, null);
+          this.setColour(230);
+        },
+      };
+
+      Blockly.Blocks["switch_stop"] = {
+        init: function () {
+          this.appendDummyInput()
+            .appendField("Stop Switch #")
+            .appendField(new Blockly.FieldNumber(0, 0), "SWITCH_NUM");
+          this.setPreviousStatement(true, null);
+          this.setNextStatement(true, null);
+          this.setColour(0);
+        },
+      };
+
+      Blockly.Blocks["wait_time"] = {
+        init: function () {
+          this.appendDummyInput()
+            .appendField("Wait")
+            .appendField(new Blockly.FieldNumber(1000, 0), "DURATION")
+            .appendField("ms");
+          this.setPreviousStatement(true, null);
+          this.setNextStatement(true, null);
+          this.setColour(60);
+        },
+      };
+
+      // --- 2. Initialize Workspace ---
+      const toolbox = {
+        kind: "flyoutToolbox",
+        contents: [
+          { kind: "block", type: "sequence_trigger" },
+          { kind: "block", type: "switch_start" },
+          { kind: "block", type: "switch_stop" },
+          { kind: "block", type: "wait_time" },
+        ],
+      };
+
+      const workspace = Blockly.inject("blocklyDiv", {
+        toolbox: toolbox,
+        sounds: false,
+        theme: "dark",
+        zoom: {
+          controls: true,
+          wheel: true,
+          startScale: 1.0,
+          maxScale: 3,
+          minScale: 0.3,
+          scaleSpeed: 1.2,
+        },
+      });
+
+      // Update triggers dynamically when blocks change
+      workspace.addChangeListener((e) => {
+        if (
+          e.type === Blockly.Events.BLOCK_CREATE ||
+          e.type === Blockly.Events.BLOCK_CHANGE ||
+          e.type === Blockly.Events.BLOCK_DELETE
+        ) {
+          refreshTriggers();
+        }
+      });
+
+      // --- 3. Parse Workspace and Execute Blocks ---
+      function refreshTriggers() {
+        const container = document.getElementById("triggerButtons");
+        container.innerHTML = "";
+
+        const topBlocks = workspace.getTopBlocks(false);
+
+        topBlocks.forEach((block) => {
+          if (block.type === "sequence_trigger") {
+            const seqName = block.getFieldValue("SEQ_NAME");
+            const btn = document.createElement("button");
+            btn.className = "trigger-btn";
+            btn.innerText = `Run: ${seqName}`;
+            btn.onclick = () => executeSequence(block);
+            container.appendChild(btn);
+          }
+        });
+      }
+
+      async function executeSequence(startBlock) {
+        const commands = [];
+        let currentBlock = startBlock.getNextBlock();
+
+        // Traverse the connected blocks
+        while (currentBlock) {
+          if (currentBlock.type === "switch_start") {
+            commands.push({
+              action: "start",
+              switch_number: currentBlock.getFieldValue("SWITCH_NUM"),
+            });
+          } else if (currentBlock.type === "switch_stop") {
+            commands.push({
+              action: "stop",
+              switch_number: currentBlock.getFieldValue("SWITCH_NUM"),
+            });
+          } else if (currentBlock.type === "wait_time") {
+            commands.push({
+              action: "wait",
+              duration: currentBlock.getFieldValue("DURATION"),
+            });
+          }
+          currentBlock = currentBlock.getNextBlock();
+        }
+
+        if (commands.length === 0) return;
+
+        await fetch("/switch/api/execute", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(commands),
+        });
+      }
+
+      // --- 4. Database & State Tracking ---
+      async function fetchScriptList() {
+        try {
+          const res = await fetch("/switch/api/scripts");
+          const scripts = await res.json();
+          const select = document.getElementById("scriptSelect");
+
+          select.innerHTML = '<option value="">-- Select a script --</option>';
+          scripts.forEach((script) => {
+            const opt = document.createElement("option");
+            opt.value = script.id;
+            opt.innerText = script.name;
+            select.appendChild(opt);
+          });
+        } catch (err) {
+          console.error("Failed to load script list", err);
+        }
+      }
+
+      async function loadWorkspace() {
+        const select = document.getElementById("scriptSelect");
+        const scriptId = select.value;
+
+        if (!scriptId) {
+          alert("Please select a script from the dropdown first.");
+          return;
+        }
+
+        try {
+          const res = await fetch(`/switch/api/script/${scriptId}`);
+          const data = await res.json();
+
+          if (data.workspace_json) {
+            const state = JSON.parse(data.workspace_json);
+            Blockly.serialization.workspaces.load(state, workspace);
+            refreshTriggers();
+          } else {
+            alert("Failed to load script data.");
+          }
+        } catch (err) {
+          console.error("Error loading workspace:", err);
+        }
+      }
+
+      async function saveWorkspace() {
+        const scriptName = prompt(
+          "Enter a name for this script:",
+          "My Switch Routine",
+        );
+        if (!scriptName) return; // User pressed cancel
+
+        const state = Blockly.serialization.workspaces.save(workspace);
+        await fetch("/switch/api/script", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: scriptName,
+            workspace_json: JSON.stringify(state),
+          }),
+        });
+
+        // Refresh the dropdown list so the new script appears immediately
+        await fetchScriptList();
+        alert("Script saved successfully!");
+      }
+
+      // Initialize script list on load
+      fetchScriptList();
+
+      setInterval(async () => {
+        try {
+          const res = await fetch("/switch/api/state");
+          const states = await res.json();
+
+          const container = document.getElementById("stateContainer");
+          container.innerHTML = "";
+
+          for (const [switchNum, isOn] of Object.entries(states)) {
+            const div = document.createElement("div");
+            div.className = "switch-indicator";
+            div.innerHTML = `<span class="dot ${isOn ? "on" : ""}"></span> Switch ${switchNum}: ${isOn ? "ON" : "OFF"}`;
+            container.appendChild(div);
+          }
+        } catch (err) {
+          console.error("State fetch error:", err);
+        }
+      }, 500);
+    </script>
+  </body>
+</html>

@@ -1,10 +1,9 @@
 from abc import ABC, abstractmethod
-import asyncio
 import random
 from threading import Thread
 import time
 from datetime import datetime
-from typing import Any, Self, override
+from typing import Self, override
 from collections import deque
 from labjack import ljm
 from server.streaming.sensors import Sensor
@@ -248,18 +247,11 @@ class Labjack(ABC):
                         value = self._smooth(ain, value, sensor_type)
 
                         # MUX logic (important)
-                        
+
                         d = PIN_MAPPING[ain]
-                        mux_number = d["mux"]
-                        ain_num = int(d["cb37_pin"].replace("AIN", ""))
-                        input_id = T7ID(mux_number=mux_number, ain=ain_num)
-
-                        # if input_id != T7ID(4,8) and input_id != T7ID(4,7):
-                        #     continue
-
-                        # print(input_id)
-                        # print(raw_voltage)
-                        # print(value)
+                        input_id = T7ID(
+                            mux_number=d["mux"], cb37_pin=d["cb37_pin"]
+                        )
 
                         st = sensor_type.lower()
                         if st in ("thermocouple", "tc"):
