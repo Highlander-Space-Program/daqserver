@@ -40,6 +40,8 @@ class ControlPublisher:
             return
 
         client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+        self.client = client
+
         client.on_connect = self._on_connect
         client.on_message = self._on_message
 
@@ -56,7 +58,6 @@ class ControlPublisher:
             return
 
         client.loop_start()
-        self.client = client
 
     @property
     def is_connected(self) -> bool:
