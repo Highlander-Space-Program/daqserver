@@ -1,9 +1,10 @@
 import asyncio
+import json
+from pathlib import Path
 from server.streaming import stream
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 from starlette.responses import HTMLResponse
-from pydantic import BaseModel
 from datetime import datetime
 
 from server.web.resources import templates
@@ -12,30 +13,30 @@ from server.web.resources import templates
 class ControlCommand(BaseModel):
     command: int
 
+
+# Command codes, servo/board names, etc. live in controls_config.json at the
+# repo root so they can be changed without touching code.
+CONTROLS_CONFIG_PATH = Path(__file__).resolve().parents[3] / "controls_config.json"
+
+
+def load_controls_config(path: Path = CONTROLS_CONFIG_PATH) -> dict:
+    with open(path, "r") as f:
+        return json.load(f)
+
+
+config = load_controls_config()
+
+# Command codes are written as hex strings ("0x06") in the JSON file
 ARM_COMMANDS = {
-    "Igniter": 0x00,
-    "Auto Ignition": 0x02,
-    "Servos": 0x04,
-    "Servo 1": 0x06,
-    "Servo 2": 0x08,
-    "Servo 3": 0x0A,
-    "Igniter_Actual": 0x0C, #not system flag
-    "LED": 0x0F
+    name: int(codes["arm"], 0) for name, codes in config["commands"].items()
 }
-
 ABORT_COMMANDS = {
-    "Igniter": 0x01,
-    "Auto Ignition": 0x03,
-    "Servos": 0x05,
-    "Servo 1": 0x07,
-    "Servo 2": 0x09,
-    "Servo 3": 0x0B,
-    "Igniter_Actual": 0x0D, #not system flag
-    "LED": 0x0E
+    name: int(codes["abort"], 0) for name, codes in config["commands"].items()
 }
 
-LED_BLINK_COUNT = 3
-LED_BLINK_DELAY_SECONDS = 0.25
+LED_BLINK_COUNT = config["ping"]["led_blink_count"]
+LED_BLINK_DELAY_SECONDS = config["ping"]["led_blink_delay_seconds"]
+MOCK_XBEE_PORT = config["mock_xbee_port"]
 
 
 router = APIRouter(prefix="/controls", tags=["controls"])
@@ -96,23 +97,13 @@ async def get_page(request: Request):
 state = {
     "xbee": {
         "connected": True,
-        "port": "/dev/mockUSB0",
+        "port": MOCK_XBEE_PORT,
         "status": "Connected"
     },
-    "boards": {
-        "Igniter Board": False,
-        "Servo Board": False,
-    },
-    "important_status": {
-        # "System": True,
-        "Igniter": True,
-        "Servos": True,
-        "Auto Ignition": True,
-    },
+    "boards": {name: False for name in config["boards"]},
+    "important_status": dict(config["system_flags"]),
     "servos": [
-        {"name": "Servo 1", "status": "CLOSED"},
-        {"name": "Servo 2", "status": "CLOSED"},
-        {"name": "Servo 3", "status": "CLOSED"},
+        {"name": name, "status": "CLOSED"} for name in config["servos"]
     ],
     "igniter": {
         "status": "OFF"
@@ -160,13 +151,13 @@ async def get_status(request: Request):
 async def connect_xbee():
     state["xbee"]["connected"] = True
     state["xbee"]["status"] = "Connected"
-    state["xbee"]["port"] = "/dev/mockUSB0"
+    state["xbee"]["port"] = MOCK_XBEE_PORT
 
-    state["boards"]["Igniter Board"] = True
-    state["boards"]["Servo Board"] = True
+    for board in state["boards"]:
+        state["boards"][board] = True
 
     log_event("Mock autodetect start")
-    log_event("MQTT connected on /dev/mockUSB0")
+    log_event(f"MQTT connected on {MOCK_XBEE_PORT}")
     return {"ok": True}
 
 
@@ -176,8 +167,8 @@ async def disconnect_xbee():
     state["xbee"]["status"] = "Disconnected"
     state["xbee"]["port"] = ""
 
-    state["boards"]["Igniter Board"] = False
-    state["boards"]["Servo Board"] = False
+    for board in state["boards"]:
+        state["boards"][board] = False
 
     log_event("Mock disconnect start")
     log_event("User mock disconnect")

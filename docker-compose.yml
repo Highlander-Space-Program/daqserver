@@ -92,6 +92,7 @@ services:
       - influxdb3-core
     volumes:
       - ./labjack_channels.json:/app/labjack_channels.json
+      - ./controls_config.json:/app/controls_config.json
     networks:
       - daq-net
 
