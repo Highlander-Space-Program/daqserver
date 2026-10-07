@@ -3,7 +3,7 @@ import asyncio
 import uvicorn
 from dotenv import load_dotenv
 
-from server.db.influx import init_influx, shutdown_influx
+from server.db.influx import init_grafana_live, shutdown_grafana_live
 from server.logger import server_logger as logger
 from server.pool import Datapool
 from server.streaming.stream import init_streaming
@@ -15,7 +15,7 @@ async def start():
 
     await init_db()
     app = init_app(datapool)
-    init_influx(datapool)
+    init_grafana_live(datapool)
     init_streaming(datapool)
 
     logger.info("Listening on http://localhost:8000")
@@ -26,7 +26,7 @@ async def start():
         await server.serve()
     finally:
         logger.info("[Shutdown] cleaning up...")
-        await shutdown_influx()
+        await shutdown_grafana_live()
 
 
 def main():
