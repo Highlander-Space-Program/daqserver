@@ -1,13 +1,19 @@
-import asyncio
 import httpx
 
-from server.pool import Topic
-from server.streaming.sensors import SensorData, SensorOutput
+from server.pool import Datapool, Topic
+from server.models import SensorOutput
 
 
 class GrafanaLivePublisher:
 
-    def __init__(self, url, token, stream_id="daq"):
+    def __init__(
+        self,
+        datapool: Datapool,
+        url: str,
+        token: str,
+        stream_id: str = "daq",
+    ):
+        self.datapool = datapool
 
         self.url = url.rstrip("/")
         self.token = token
@@ -24,88 +30,42 @@ class GrafanaLivePublisher:
             }
         )
 
-        self.running = False
-
-    async def start(self):
-        self.running = True
-
         self.datapool.subscribe(
             Topic.SENSORDATA,
-            self.handle_data,
+            self._on_sensor_data,
         )
 
-        print("Grafana Live publisher started")
-        print(f"Publishing to: {self.endpoint}")
-
-    async def handle_data(self, data: SensorData):
+    async def _on_sensor_data(self, data):
         try:
-            lines = self.normalize(data)
+            sensor_output = data
 
-            if not lines:
-                return
+            # SensorOutput contains the sensor value and metadata.
+            entry = sensor_output.data
 
-            payload = "\n".join(lines)
-
-            response = await self.client.post(
-                self.endpoint,
-                content=payload,
-            )
-
-            response.raise_for_status()
-
-        except Exception as e:
-            print("[GrafanaLive] error:", e)
-
-    def normalize(self, data: SensorData):
-        if hasattr(data, "get_data"):
-            return self.from_sensor_output(data.get_data())
-
-        raise ValueError(
-            f"Unsupported datapool format: {type(data)}"
-        )
-
-    def from_sensor_output(
-        self,
-        sensor_output: SensorOutput,
-    ):
-        lines = []
-
-        source = sensor_output.source.to_dict()
-        measurement = sensor_output.data_type.value
-
-        for entry in sensor_output.data:
+            source = sensor_output.source.to_dict()
 
             tags = []
 
             for key, value in source.items():
-                if value is not None:
-                    tags.append(
-                        f"{key}={value}"
-                    )
+                tags.append(f"{key}={value}")
 
             tags.append(
                 f"data_type={sensor_output.data_type.value}"
             )
 
-            tag_string = ""
+            tag_string = ",".join(tags)
 
-            if tags:
-                tag_string = "," + ",".join(tags)
-
-            timestamp_ns = int(
-                entry.time.timestamp() * 1_000_000_000
+            payload = (
+                f"sensor_data,{tag_string} "
+                f"value={entry.value}"
             )
 
-            line = (
-                f"{measurement}"
-                f"{tag_string} "
-                f"value={float(entry.value)} "
-                f"{timestamp_ns}"
-            )
+            print("[GrafanaLive] Sending:", payload)
 
-            lines.append(line)
+            await self.publish(payload)
 
-        return lines
+        except Exception as exc:
+            print("[GrafanaLive] Error:", exc)
 
     async def publish(self, payload: str):
         response = await self.client.post(
@@ -121,11 +81,8 @@ class GrafanaLivePublisher:
 
         response.raise_for_status()
 
-
     async def shutdown(self):
         print("[GrafanaLive] shutting down...")
-
-        self.running = False
 
         await self.client.aclose()
 
