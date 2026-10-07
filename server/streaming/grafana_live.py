@@ -7,8 +7,7 @@ from server.streaming.sensors import SensorData, SensorOutput
 
 class GrafanaLivePublisher:
 
-    def __init__(self, datapool, url, token, stream_id="daq"):
-        self.datapool = datapool
+    def __init__(self, url, token, stream_id="daq"):
 
         self.url = url.rstrip("/")
         self.token = token
@@ -107,6 +106,21 @@ class GrafanaLivePublisher:
             lines.append(line)
 
         return lines
+
+    async def publish(self, payload: str):
+        response = await self.client.post(
+            self.endpoint,
+            content=payload,
+        )
+
+        print(
+            "[GrafanaLive]",
+            response.status_code,
+            response.text,
+        )
+
+        response.raise_for_status()
+
 
     async def shutdown(self):
         print("[GrafanaLive] shutting down...")
