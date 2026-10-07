@@ -29,9 +29,9 @@ def init_grafana_live(datapool: Datapool):
 
     grafana_live = GrafanaLivePublisher(
         datapool=datapool,
-        url=grafana_url,
-        token=grafana_token,
-        stream_id=grafana_stream_id,
+        url=url,
+        token=token,
+        stream_id=stream_id,
     )
 
     asyncio.create_task(
