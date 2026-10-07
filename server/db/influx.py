@@ -1,45 +1,45 @@
 import os
 import asyncio
 
-from server.db.bridge import Bridge
-from server.db.pool_bridge import PoolBridge
 from server.logger import db_logger as logger
 from server.pool import Datapool
+from server.streaming.grafana_live import GrafanaLivePublisher
 
 
-bridge = None
-pool_bridge = None
+grafana_live = None
 
 
-def init_influx(datapool: Datapool):
-    global bridge, pool_bridge
-    influx_url = os.getenv("INFLUXDB_URL")
-    influx_token = os.getenv("INFLUXDB_TOKEN")
-    influx_database = os.getenv("INFLUXDB_DATABASE")
-    mqtt_host = os.getenv("MQTT_HOST")
-    mqtt_port = int(os.getenv("MQTT_PORT", 1883))
-    influx_exists = all([influx_url, influx_token, influx_database, mqtt_host])
+def init_grafana_live(datapool: Datapool):
 
-    if influx_exists:
-        #logger.info("Found environment variables for Influx. Start...")
-        #bridge = Bridge(
-        #    influx_url, influx_token, influx_database, mqtt_host, mqtt_port
-        #)
-        #bridge.start()
+    global grafana_live
 
-        pool_bridge = PoolBridge(
-            datapool, influx_url, influx_token, influx_database
+    grafana_url = os.getenv("GRAFANA_URL")
+    grafana_token = os.getenv("GRAFANA_TOKEN")
+    grafana_stream_id = os.getenv(
+        "GRAFANA_STREAM_ID",
+        "daq",
+    )
+
+    if not grafana_url or not grafana_token:
+        logger.warning(
+            "Grafana Live is not starting: "
+            "missing GRAFANA_URL or GRAFANA_TOKEN"
         )
-        asyncio.create_task(pool_bridge.start())
-    else:
-        logger.warn(
-            "Influx is not starting due to missing some environment variables"
-        )
+        return
+
+    grafana_live = GrafanaLivePublisher(
+        datapool=datapool,
+        url=grafana_url,
+        token=grafana_token,
+        stream_id=grafana_stream_id,
+    )
+
+    asyncio.create_task(
+        grafana_live.start()
+    )
 
 
-async def shutdown_influx():
-    if bridge is not None:
-        bridge.shutdown()
+async def shutdown_grafana_live():
 
-    if pool_bridge is not None:
-        await pool_bridge.shutdown()
+    if grafana_live is not None:
+        await grafana_live.shutdown()
