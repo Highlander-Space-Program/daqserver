@@ -61,10 +61,13 @@ class GrafanaLivePublisher:
         # Establish the initial connection. publish() can reconnect later.
         await self.connect()
 
-    async def on_sensor_data(self, data):
+    async def on_sensor_data(self, sensor_data):
         """Datapool callback for each incoming sensor measurement."""
-        payload = self.to_line_protocol(data)
-        await self.publish(payload)
+        output = sensor_data.get_data()
+        payload = self.to_line_protocol(output)
+
+        if payload:
+            await self.publish(payload)
 
     def to_line_protocol(self, output) -> str:
     """Convert a SensorOutput into one line per sample."""
