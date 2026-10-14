@@ -7,6 +7,7 @@ from websockets.exceptions import ConnectionClosed
 
 from server.pool import Datapool, Topic
 
+from datetime import datetime, timezone
 
 class GrafanaLivePublisher:
     def __init__(
@@ -65,50 +66,50 @@ class GrafanaLivePublisher:
         payload = self.to_line_protocol(data)
         await self.publish(payload)
 
-    def to_line_protocol(self, data) -> str:
-        """
-        Convert a sensor measurement into Influx line protocol.
+    def to_line_protocol(self, output) -> str:
+    """Convert a SensorOutput into one line per sample."""
 
-        Adapt this method to the exact SensorData schema in sensors.py.
-        """
-        if hasattr(data, "to_dict"):
-            data = data.to_dict()
+        measurement = output.data_type.value
 
-        if not isinstance(data, dict):
-            raise TypeError(
-                f"Unsupported sensor data type: {type(data).__name__}"
+        # InputId is a dataclass-like object with to_dict().
+        source = output.source.to_dict()
+
+        def escape_tag(value):
+            return (
+                str(value)
+                .replace("\\", "\\\\")
+                .replace(",", "\\,")
+                .replace(" ", "\\ ")
+                .replace("=", "\\=")
             )
 
-        measurement = data.get("data_type", "sensor")
-        input_id = data.get("input_id", "unknown")
-        sample = data.get("data", data)
+        tags = []
+        for key in ("mux_number", "cb37_pin", "type", "sensor_type"):
+            if key in source:
+                tags.append(f"{key}={escape_tag(source[key])}")
 
-        if not isinstance(sample, dict):
-            raise ValueError("Sensor data must contain a data dictionary")
+        tag_string = "," + ",".join(tags) if tags else ""
 
-        value = sample.get("value")
-        timestamp = sample.get("time")
+        lines = []
 
-        if value is None:
-            raise ValueError("Sensor measurement has no value")
+        for sample in output.data:
+            timestamp = sample.time
 
-        # Escape Influx line-protocol tag/measurement characters.
-        measurement = str(measurement).replace("\\", "\\\\")
-        measurement = measurement.replace(",", "\\,").replace(" ", "\\ ")
-        input_id = str(input_id).replace("\\", "\\\\")
-        input_id = input_id.replace(",", "\\,").replace(" ", "\\ ")
+            # Convert datetime to Unix nanoseconds.
+            if timestamp.tzinfo is None:
+                # Assumes naive timestamps represent local system time.
+                timestamp = timestamp.astimezone()
 
-        # Influx timestamps must be integer nanoseconds.
-        if timestamp is None:
-            import time
-            timestamp = time.time_ns()
-        else:
-            timestamp = int(timestamp)
+            timestamp_ns = int(
+                timestamp.astimezone(timezone.utc).timestamp() * 1_000_000_000
+            )
 
-        return (
-            f"{measurement},input_id={input_id} "
-            f"value={float(value)} {timestamp}"
-        )
+            lines.append(
+                f"{escape_tag(measurement)}{tag_string} "
+                f"value={float(sample.value)} {timestamp_ns}"
+            )
+
+        return "\n".join(lines)
 
     async def publish(self, payload: str):
         async with self._send_lock:
