@@ -1,25 +1,32 @@
-
 import asyncio
-import json
+import os
+from datetime import timezone
 
 import websockets
 from websockets.exceptions import ConnectionClosed
 
-from datetime import datetime, timezone
+from server.streaming.sensors import SensorData, SensorOutput
+
 
 class GrafanaLivePublisher:
     def __init__(
         self,
-        datapool: Datapool,
-        url: str,
-        token: str,
-        stream_id: str = "daq",
+        url: str | None = None,
+        token: str | None = None,
+        stream_id: str | None = None,
     ):
-        self.url = url.rstrip("/")
-        self.token = token
-        self.stream_id = stream_id
+        # Accept either a base Grafana URL or the full push endpoint.
+        self.url = (
+            url or os.getenv("GRAFANA_URL", "ws://localhost:3000")
+        ).rstrip("/")
+        self.token = token or os.getenv("GRAFANA_TOKEN")
+        self.stream_id = stream_id or os.getenv(
+            "GRAFANA_STREAM_ID", "daq"
+        )
 
-        # Accept either the Grafana base URL or full push endpoint.
+        if not self.token:
+            raise ValueError("GRAFANA_TOKEN is not set")
+
         if "/api/live/push/" in self.url:
             self.endpoint = self.url
         else:
@@ -28,84 +35,92 @@ class GrafanaLivePublisher:
             )
 
         self.websocket = None
-        self._stop = asyncio.Event()
         self._send_lock = asyncio.Lock()
 
     async def connect(self):
         if self.websocket is not None:
             return
 
-        headers = {
-            "Authorization": f"Bearer {self.token}",
-        }
-
         self.websocket = await websockets.connect(
             self.endpoint,
-            additional_headers=headers,
+            additional_headers={
+                "Authorization": f"Bearer {self.token}"
+            },
             ping_interval=20,
             ping_timeout=20,
         )
-
         print(f"[GrafanaLive] Connected: {self.endpoint}")
 
-    async def start(self):
-        # Establish the initial connection. publish() can reconnect later.
-        await self.connect()
+    @staticmethod
+    def _escape_measurement(value: str) -> str:
+        return (
+            str(value)
+            .replace("\\", "\\\\")
+            .replace(",", "\\,")
+            .replace(" ", "\\ ")
+        )
 
-    async def on_sensor_data(self, sensor_data):
-        """Datapool callback for each incoming sensor measurement."""
-        output = sensor_data.get_data()
-        payload = self.to_line_protocol(output)
+    @staticmethod
+    def _escape_tag(value: str) -> str:
+        return (
+            str(value)
+            .replace("\\", "\\\\")
+            .replace(",", "\\,")
+            .replace(" ", "\\ ")
+            .replace("=", "\\=")
+        )
 
-        if payload:
-            await self.publish(payload)
+    @classmethod
+    def serialize_output(cls, output: SensorOutput) -> str:
+        """Convert SensorOutput to Influx line protocol."""
+        measurement = cls._escape_measurement(
+            output.data_type.value
+        )
 
-    def to_line_protocol(self, output) -> str:
-    """Convert a SensorOutput into one line per sample."""
-
-        measurement = output.data_type.value
-
-        # InputId is a dataclass-like object with to_dict().
         source = output.source.to_dict()
-
-        def escape_tag(value):
-            return (
-                str(value)
-                .replace("\\", "\\\\")
-                .replace(",", "\\,")
-                .replace(" ", "\\ ")
-                .replace("=", "\\=")
-            )
-
         tags = []
-        for key in ("mux_number", "cb37_pin", "type", "sensor_type"):
-            if key in source:
-                tags.append(f"{key}={escape_tag(source[key])}")
+
+        for key, value in source.items():
+            if value is None:
+                continue
+
+            escaped_key = cls._escape_tag(key)
+            escaped_value = cls._escape_tag(value)
+            tags.append(f"{escaped_key}={escaped_value}")
+
+        # Add the data type as an explicit tag too.
+        tags.append(
+            f"data_type={cls._escape_tag(output.data_type.value)}"
+        )
 
         tag_string = "," + ",".join(tags) if tags else ""
-
         lines = []
 
         for sample in output.data:
             timestamp = sample.time
 
-            # Convert datetime to Unix nanoseconds.
+            # Treat naive datetimes as local time, then convert to UTC.
             if timestamp.tzinfo is None:
-                # Assumes naive timestamps represent local system time.
                 timestamp = timestamp.astimezone()
 
             timestamp_ns = int(
-                timestamp.astimezone(timezone.utc).timestamp() * 1_000_000_000
+                timestamp.astimezone(timezone.utc).timestamp()
+                * 1_000_000_000
             )
 
             lines.append(
-                f"{escape_tag(measurement)}{tag_string} "
+                f"{measurement}{tag_string} "
                 f"value={float(sample.value)} {timestamp_ns}"
             )
 
         return "\n".join(lines)
 
-    async def publish(self, payload: str):
+    async def publish_output(self, output: SensorOutput):
+        """Publish a SensorOutput directly, without Datapool."""
+        payload = self.serialize_output(output)
+        if not payload:
+            return
+
         async with self._send_lock:
             for attempt in range(2):
                 try:
@@ -113,7 +128,7 @@ class GrafanaLivePublisher:
                         await self.connect()
 
                     await self.websocket.send(payload)
-                    print(f"[GrafanaLive] Sent: {payload}")
+                    print(f"[GrafanaLive] Sent {len(output.data)} sample(s)")
                     return
 
                 except (ConnectionClosed, OSError) as exc:
@@ -124,27 +139,22 @@ class GrafanaLivePublisher:
                             await self.websocket.close()
                         except Exception:
                             pass
-
                     self.websocket = None
 
-                    if attempt == 0 and not self._stop.is_set():
-                        await asyncio.sleep(0.5)
-                        continue
+                    if attempt == 1:
+                        raise
 
-                    raise
+                    await asyncio.sleep(0.5)
 
-    async def shutdown(self):
-        print("[GrafanaLive] shutting down...")
-        self._stop.set()
+    async def publish_sensor_data(self, sensor_data: SensorData):
+        """Accept the existing LabJackData wrapper."""
+        await self.publish_output(sensor_data.get_data())
 
-        # Unsubscribe so future sensor updates aren't sent to a closed client.
-        self.datapool.subscribers[Topic.SENSORDATA.value].discard(
-            self.on_sensor_data
-        )
+    async def close(self):
+        async with self._send_lock:
+            if self.websocket is not None:
+                await self.websocket.close()
+                self.websocket = None
 
-        if self.websocket is not None:
-            await self.websocket.close()
-            self.websocket = None
-
-        print("[GrafanaLive] shutdown complete")
+        print("[GrafanaLive] Closed")
 
