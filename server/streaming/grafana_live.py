@@ -5,8 +5,6 @@ import json
 import websockets
 from websockets.exceptions import ConnectionClosed
 
-from server.pool import Datapool, Topic
-
 from datetime import datetime, timezone
 
 class GrafanaLivePublisher:
@@ -17,7 +15,6 @@ class GrafanaLivePublisher:
         token: str,
         stream_id: str = "daq",
     ):
-        self.datapool = datapool
         self.url = url.rstrip("/")
         self.token = token
         self.stream_id = stream_id
@@ -33,12 +30,6 @@ class GrafanaLivePublisher:
         self.websocket = None
         self._stop = asyncio.Event()
         self._send_lock = asyncio.Lock()
-
-        # Subscribe to the same topic used by the LabJack.
-        self.datapool.subscribe(
-            Topic.SENSORDATA,
-            self.on_sensor_data,
-        )
 
     async def connect(self):
         if self.websocket is not None:
