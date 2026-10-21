@@ -11,3 +11,4 @@ __pycache__/
 
 daqserver.egg-info/
 daq_ui.db
+.DS_Store
