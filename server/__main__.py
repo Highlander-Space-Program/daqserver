@@ -45,8 +45,6 @@ async def start():
 
     await init_db()
     app = init_app()
-    init_grafana_live()
-    init_streaming()
 
     sensors = [Sensor("asdf")] * 3
     grafana_live_publishers = [GrafanaLivePublisher(stream_id=sensor.stream_id) for sensor in sensors]
