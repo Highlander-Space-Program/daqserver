@@ -12,5 +12,12 @@
         "SensorType": "Pressure",
         "Differential": false,
         "Board": "T7"
+    },
+    {
+        "Type": "AIN",
+        "AIN": "AIN48",
+        "SensorType": "loadcell",
+        "Differential": false,
+        "Board": "T7"
     }
 ]

@@ -5,8 +5,6 @@ import asyncio
 
 from labjack import ljm
 
-from server.pool import Datapool, Topic
-
 from server.states import SWITCH_MAPPING
 
 type LabjackHandle = int
@@ -52,9 +50,6 @@ class CommandExecutor:
     async def listen_for_commands(self, commands: list[Command]):
         for command in commands:
             await command.execute(self.handle)
-
-    def start_listening(self, datapool: Datapool):
-        datapool.subscribe(Topic.SWITCHCOM, self.listen_for_commands)
 
 
 class Command(ABC):

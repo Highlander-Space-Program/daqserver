@@ -2,8 +2,6 @@ import asyncio
 import os
 from dataclasses import dataclass
 
-from fastapi import WebSocket
-from server.web.app import app
 import uvicorn
 from dotenv import load_dotenv
 
@@ -14,17 +12,9 @@ from threading import Thread
 
 from server.streaming.grafana_live import GrafanaLivePublisher
 from server.logger import server_logger as logger
-from server.pool import Datapool
 from server.streaming.stream import init_streaming
 from server.web.app import init_app, init_db
 
-
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    while True:
-        data = await websocket.receive_text()
-        await websocket.send_text(f"Message text was: {data}")
 
 @dataclass
 class Sensor():
@@ -45,11 +35,11 @@ async def start():
 
     await init_db()
     app = init_app()
-    init_grafana_live()
-    init_streaming()
+    # init_grafana_live()
+    init_streaming(loop)
 
-    sensors = [Sensor("asdf")] * 3
-    grafana_live_publishers = [GrafanaLivePublisher(stream_id=sensor.stream_id) for sensor in sensors]
+    # sensors = [Sensor("asdf")] * 3
+    # grafana_live_publishers = [GrafanaLivePublisher(stream_id=sensor.stream_id) for sensor in sensors]
 
     logger.info("Listening on http://localhost:8000")
     config = uvicorn.Config(app, host="0.0.0.0", port=8000)
@@ -59,8 +49,8 @@ async def start():
         await server.serve()
     finally:
         logger.info("[Shutdown] cleaning up...")
-        for publisher in grafana_live_publishers:
-            await publisher.close()
+        # for publisher in grafana_live_publishers:
+        #     await publisher.close()
 
 
 def main():
