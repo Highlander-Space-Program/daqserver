@@ -189,10 +189,6 @@ async function deleteSensor(sensorId) {
   backendConfig.graphs = backendConfig.graphs.filter((g) => {
     if (g.sensor_id === sensorId) {
       // clean up Chart.js memory
-      if (chartInstances && chartInstances[g.id]) {
-        chartInstances[g.id].destroy();
-        delete chartInstances[g.id];
-      }
       return false;
     }
     return true;
@@ -250,10 +246,6 @@ async function deleteGraph(graphId) {
       (g) => g.id !== graphId
     );
 
-    if (chartInstances[graphId]) {
-      chartInstances[graphId].destroy();
-      delete chartInstances[graphId];
-    }
 
     renderStats();
     renderGraphs();
