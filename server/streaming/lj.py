@@ -1,4 +1,6 @@
 from abc import ABC, abstractmethod
+from server.streaming.sensors import PORT_OPTIONS
+import asyncio
 import random
 from threading import Thread
 import time
@@ -7,7 +9,6 @@ from typing import Self, override
 from collections import deque
 from labjack import ljm
 from server.streaming.sensors import Sensor
-from server.pool import Datapool, Topic
 from server.streaming.sensors import (
     DataType,
     InputId,
@@ -19,6 +20,7 @@ from server.streaming.sensors import (
 from server.streaming.sensors import T7ID
 from server.logger import streaming_logger
 from server.states import PIN_MAPPING
+from server.web.resources import manager
 
 
 def calibration1(voltage):
@@ -62,8 +64,8 @@ class LabJackData(SensorData):
 
 
 class LabJackTest:
-    def __init__(self, datapool: Datapool):
-        self.datapool = datapool
+    def __init__(self, loop):
+        self.loop = loop
         self.input_id = TestID()
 
     def init(self):
@@ -74,7 +76,7 @@ class LabJackTest:
         while True:
             value = random.random()
             fake_data = LabJackData(self.input_id, DataType.TEST, value)
-            self.datapool.publish(Topic.SENSORDATA, fake_data)
+            asyncio.run_coroutine_threadsafe(manager.broadcast("test", fake_data), self.loop)
             time.sleep(0.1)
 
 
@@ -113,9 +115,10 @@ class Labjack(ABC):
     SCAN_RATE_HZ: int = 10
     SCANS_PER_READ: int = 1
 
-    def __init__(self, datapool: Datapool) -> None:
+    def __init__(self, manager, loop) -> None:
         self.handle = None
-        self.datapool = datapool
+        self.manager = manager
+        self.loop = loop
         self._buffers: dict[str, deque] = {}
         self._tare: dict[str, float] = {}
         self.device = "UNKNOWN"
@@ -265,7 +268,12 @@ class Labjack(ABC):
 
                         sensor_data = LabJackData(input_id, data_type, value)
 
-                        self.datapool.publish(Topic.SENSORDATA, sensor_data)
+                        topic = None
+                        for destination, source in PORT_OPTIONS.items():
+                            if source == sensor_data.get_data().source:
+                                topic = destination
+                        if topic is not None:
+                            asyncio.run_coroutine_threadsafe(self.manager.broadcast(topic, sensor_data),self.loop)
 
         except KeyboardInterrupt:
             print("Stream interrupted.")
@@ -294,8 +302,8 @@ class Labjack(ABC):
 
 
 class LabjackT8(Labjack):
-    def __init__(self, datapool: Datapool) -> None:
-        super().__init__(datapool)
+    def __init__(self, manager, loop) -> None:
+        super().__init__(manager, loop)
         self.device = "T8"
 
     @override
@@ -312,8 +320,8 @@ class LabjackT8(Labjack):
 
 
 class LabjackT7(Labjack):
-    def __init__(self, datapool: Datapool) -> None:
-        super().__init__(datapool)
+    def __init__(self, manager, loop) -> None:
+        super().__init__(manager, loop)
         self.device = "T7"
 
     @override

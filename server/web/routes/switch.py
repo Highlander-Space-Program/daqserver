@@ -1,11 +1,10 @@
 import aiosqlite
 from dataclasses import dataclass
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
-
-from server.pool import Datapool, Topic
 from server.states import DB_PATH
-from server.web.resources import get_datapool, templates
+from server.web.resources import templates
+from server.streaming.stream import command_executor
 from server.streaming.switches import (
     GLOBAL_SWITCH_STATES,
     Start,
@@ -40,7 +39,7 @@ async def init_db(db):
 
 @router.post("/api/execute")
 async def execute_sequence(
-    commands: list[CommandPayload], datapool: Datapool = Depends(get_datapool)
+    commands: list[CommandPayload]
 ):
     """Receives parsed Blockly blocks and publishes them to the executor pool."""
     valid_commands = []
@@ -60,8 +59,8 @@ async def execute_sequence(
                 return {"status": "error"}
             command = Timeout(cmd.duration / 1000.0)
         valid_commands.append(command)
-
-    datapool.publish(Topic.SWITCHCOM, valid_commands)
+    if command_executor is not None:
+        await command_executor.listen_for_commands(valid_commands)
     return {"status": "Sequence queued"}
 
 

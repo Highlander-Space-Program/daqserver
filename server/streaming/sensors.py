@@ -20,7 +20,6 @@ class InputId(ABC):
 @dataclass
 class TestID(InputId):
     sensor_type: str = "Test"
-
     @override
     def to_dict(self) -> dict:
         return {"sensor_type": self.sensor_type}
@@ -80,7 +79,7 @@ PORT_OPTIONS: dict[str, InputId] = {
     "TC-1": T7ID(3, "AIN0"),
     "TC-2": T7ID(3, "AIN1"),
     "TC-3": T7ID(3, "AIN2"),
-    "LC-1": T7ID(3, "AIN4"),
+    "LC-1": T7ID(3, "AIN0"),
     "test": TestID(),
 }
 
