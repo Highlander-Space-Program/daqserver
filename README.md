@@ -25,6 +25,67 @@ The main DAQ server repo.
 You don't need to download any Python for this, `uv` will download the right
 version and install all of the packages for you.
 
+## Running the data simulator
+
+The simulator sends fake sensor data to Grafana, so you can build and test
+dashboards without the real test stand. It fakes 4 pressure sensors (PT-1 to
+PT-4), 3 temperature sensors (TC-1 to TC-3) and 1 thrust sensor (LC-1), and
+plays out a pretend test fire (pressurize, burn, vent) that repeats every 60
+seconds.
+
+### 1. Start Grafana
+
+1. Do steps 1-4 from [Running this project](#running-this-project) if you
+   haven't already
+2. Download and open [Docker
+   Desktop](https://docs.docker.com/compose/install/#docker-desktop-recommended).
+   Leave it running.
+3. Start Grafana `docker compose up -d grafana`
+4. Open http://localhost:3000 in your browser and log in with username `admin`
+   and password `admin`. If it asks you to change the password, you can click
+   **Skip**.
+
+### 2. Start the simulator
+
+In a terminal inside the `daqserver` folder, run:
+
+```
+uv run python -m server.streaming.simulator
+```
+
+You should see `Pushing 8 channels at 10.0 Hz ...`. Leave this terminal open.
+The simulator keeps running until you press `Ctrl+C`.
+
+### 3. Make a graph in Grafana
+
+1. In Grafana, click **Dashboards** in the left menu, then **New** →
+   **New dashboard** → **Add visualization**
+2. When it asks for a data source, pick **-- Grafana --**
+3. Under the query, change **Query type** to **Live Measurements**
+4. For **Channel**, pick one of these:
+   - `stream/daq_sim/pressure` for the pressure sensors (psi)
+   - `stream/daq_sim/temperature` for the temperature sensors (°C)
+   - `stream/daq_sim/load` for the thrust sensor (lbs)
+5. You should see lines moving within a few seconds. Click **Save dashboard**
+   (top right) so you don't have to do this again.
+
+Repeat step 3 to add a graph for each channel.
+
+### Something went wrong?
+
+- **`Cannot reach Grafana`**: Grafana isn't running. Make sure Docker Desktop
+  is open and run `docker compose up -d grafana` again.
+- **`Grafana rejected the credentials`**: someone changed the Grafana admin
+  password. Ask the DAQ lead for it, then put these two lines in your `.env`
+  file (create it with `cp .env.example .env` if you don't have one):
+  ```
+  GRAFANA_USER=admin
+  GRAFANA_PASSWORD=the-new-password
+  ```
+- **The channel isn't in the list, or the graph is empty**: make sure the
+  simulator terminal is still running and not showing errors. The channels
+  only show up after the simulator has started sending data.
+
 ## Development
 
 If you are going to add a new package to the python code, use `uv add
