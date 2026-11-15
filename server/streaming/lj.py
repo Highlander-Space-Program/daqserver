@@ -14,7 +14,6 @@ from server.streaming.sensors import (
     PORT_OPTIONS,
     DataType,
     InputId,
-    LabJackData as _UnusedLabJackData,  # Remove if not defined in sensors.py
     Sensor,
     SensorData,
     SensorOutput,
