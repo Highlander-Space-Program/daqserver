@@ -1,34 +1,120 @@
+import asyncio
+import os
 from threading import Thread
-from server.web.resources import manager
-from labjack.ljm import LJMError
-from server.streaming.lj import LabJackTest, LabjackT7
+
+from server.streaming.lj import LabjackT7
 from server.streaming.sensors import load_sensors_from_json
-from server.logger import streaming_logger as logger
-from server.streaming.switches import CommandExecutor
-
-labjack_instance = None
-command_executor = None
+from server.logger import streaming_logger
 
 
-def init_streaming(loop):
-    global labjack_instance
-    labjack_instance = LabjackT7(manager, loop)
+def init_streaming(
+    loop,
+    grafana_publisher=None,
+    influx_publisher=None,
+    config_path="labjack_channels.json",
+):
+    backend_name = os.getenv("DAQ_BACKEND", "real").lower()
 
-    t7 = labjack_instance
-    try:
-        t7.open("Ethernet", "10.10.10.20")
-        sensors = load_sensors_from_json("labjack_channels.json", board="T7")
-        thread = Thread(target=t7.stream, args=(sensors,), daemon=True)
-        thread.start()
-        global command_executor
-        ce = CommandExecutor(t7.handle)
-        command_executor = ce
-    except AttributeError:
-        logger.warn(
-            "Unable to open labjack due to not having the right libraries and drivers"
+    sensors = load_sensors_from_json(
+        config_path,
+        board="T7",
+    )
+
+    if not sensors:
+        raise RuntimeError(
+            f"No T7 sensors loaded from {config_path}"
         )
-    except LJMError:
-        logger.warn("Unable to open t7 labjack through ethernet")
 
-    lj_test = LabJackTest(loop)
-    lj_test.init()
+    streaming_logger.info(
+        "Loaded %d T7 sensors.",
+        len(sensors),
+    )
+
+    # Start Influx's queue worker, if configured.
+    if influx_publisher is not None:
+        influx_publisher.start()
+
+    def publish_sensor_output(output):
+        # Influx writes independently of Grafana Live.
+        if influx_publisher is not None:
+            try:
+                influx_publisher.publish_output(output)
+            except Exception:
+                streaming_logger.exception(
+                    "Could not queue output for InfluxDB."
+                )
+
+        # Grafana Live uses the application's asyncio event loop.
+        if grafana_publisher is not None:
+            try:
+                future = asyncio.run_coroutine_threadsafe(
+                    grafana_publisher.publish_output(output),
+                    loop,
+                )
+                future.add_done_callback(
+                    lambda f: _log_future_error(
+                        f,
+                        "Grafana Live publishing failed.",
+                    )
+                )
+            except Exception:
+                streaming_logger.exception(
+                    "Could not schedule Grafana Live publishing."
+                )
+
+    if backend_name == "virtual":
+        from server.testing.virtual_labjack import VirtualLabJack
+
+        virtual_ljm = VirtualLabJack(
+            sensors=sensors,
+            mode=os.getenv("DAQ_VIRTUAL_MODE", "normal"),
+            scan_rate_hz=10,
+        )
+
+        t7 = LabjackT7(
+            manager=None,
+            loop=None,
+            ljm_api=virtual_ljm,
+            on_sensor_data=publish_sensor_output,
+        )
+
+        t7.open("ANY", "VIRTUAL")
+
+    elif backend_name == "real":
+        t7 = LabjackT7(
+            manager=None,
+            loop=None,
+            on_sensor_data=publish_sensor_output,
+        )
+
+        t7.open(
+            os.getenv("LABJACK_CONNECTION", "Ethernet"),
+            os.getenv("LABJACK_IDENTIFIER", "10.10.10.20"),
+        )
+
+    else:
+        raise ValueError(
+            f"Unknown DAQ_BACKEND: {backend_name}"
+        )
+
+    worker = Thread(
+        target=t7.stream,
+        args=(sensors,),
+        daemon=True,
+        name=f"{backend_name}-labjack-stream",
+    )
+    worker.start()
+
+    streaming_logger.info(
+        "Started %s LabJack acquisition.",
+        backend_name,
+    )
+
+    return t7, worker
+
+
+def _log_future_error(future, message):
+    try:
+        future.result()
+    except Exception:
+        streaming_logger.exception(message)
