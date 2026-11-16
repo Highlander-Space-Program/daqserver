@@ -4,9 +4,10 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from server.states import DB_PATH
 from server.web.resources import templates
-from server.streaming.stream import command_executor
+from server.streaming import stream as streaming
 from server.streaming.switches import (
     GLOBAL_SWITCH_STATES,
+    SWITCH_OPTIONS,
     Start,
     Stop,
     Timeout,
@@ -39,28 +40,46 @@ async def init_db(db):
 
 @router.post("/api/execute")
 async def execute_sequence(
-    commands: list[CommandPayload]
-):
-    """Receives parsed Blockly blocks and publishes them to the executor pool."""
+    """Execute a sequence of Blockly commands on the active LabJack."""
+    executor = streaming.command_executor
+    if executor is None:
+        raise HTTPException(
+            status_code=503,
+            detail="LabJack is not initialized.",
+        )
     valid_commands = []
     for cmd in commands:
-        command = None
-        if cmd.action == "start":
+        if cmd.action in ("start", "stop"):
             if cmd.switch_number is None:
-                return {"status": "error"}
-            command = Start(SwitchID(cmd.switch_number, 1))
-        elif cmd.action == "stop":
-            if cmd.switch_number is None:
-                return {"status": "error"}
-            command = Stop(SwitchID(cmd.switch_number, 1))
+                raise HTTPException(
+                    status_code=400,
+                    detail="A switch number is required.",
+                )
+            switch_key = f"S{cmd.switch_number}"
+            if switch_key not in SWITCH_OPTIONS:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid switch number: {cmd.switch_number}",
+                )
+            switch_id = SwitchID(cmd.switch_number, 1)
+            if cmd.action == "start":
+                valid_commands.append(Start(switch_id))
+            else:
+                valid_commands.append(Stop(switch_id))
         elif cmd.action == "wait":
-            # Convert milliseconds to seconds for the Timeout command
-            if cmd.duration is None:
-                return {"status": "error"}
-            command = Timeout(cmd.duration / 1000.0)
-        valid_commands.append(command)
-    if command_executor is not None:
-        await command_executor.listen_for_commands(valid_commands)
+            if cmd.duration is None or cmd.duration < 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail="A non-negative duration is required.",
+                )
+            # Convert milliseconds to seconds.
+            valid_commands.append(Timeout(cmd.duration / 1000.0))
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown command: {cmd.action}",
+            )
+    await executor.listen_for_commands(valid_commands)
     return {"status": "Sequence queued"}
 
 
