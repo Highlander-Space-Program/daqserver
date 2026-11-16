@@ -128,7 +128,7 @@ class GrafanaLivePublisher:
                         await self.connect()
 
                     await self.websocket.send(payload)
-                    print(f"[GrafanaLive] Sent {len(output.data)} sample(s)")
+                    # print(f"[GrafanaLive] Sent {len(output.data)} sample(s)")
                     return
 
                 except (ConnectionClosed, OSError) as exc:
