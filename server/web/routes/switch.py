@@ -39,7 +39,7 @@ async def init_db(db):
 
 
 @router.post("/api/execute")
-async def execute_sequence(
+async def execute_sequence(commands: list[CommandPayload]):
     """Execute a sequence of Blockly commands on the active LabJack."""
     executor = streaming.command_executor
     if executor is None:
