@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from queue import Queue, Empty
 from threading import Thread, Event
 import logging
@@ -60,7 +60,18 @@ class InfluxPublisher:
 
         timestamp = sample.time
         if isinstance(timestamp, datetime):
+            # If naive, interpret it as the computer's local timezone.
+            if timestamp.tzinfo is None:
+                timestamp = timestamp.astimezone()
+
+            # Normalize to UTC before writing.
+            timestamp = timestamp.astimezone(timezone.utc)
             point = point.time(timestamp)
+
+        else:
+            raise TypeError(
+                f"Expected datetime for sample.time, got {type(timestamp)}"
+            )
 
         return point
 

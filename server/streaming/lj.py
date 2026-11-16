@@ -171,10 +171,8 @@ class Labjack(ABC):
         self.stop()
 
         if self.handle is not None:
-            try:
-                self.ljm.close(self.handle)
-            finally:
-                self.handle = None
+            self.ljm.close(self.handle)
+            self.handle = None
 
         print("LabJack closed.")
 
@@ -410,7 +408,8 @@ class Labjack(ABC):
         if not sensors:
             raise ValueError("No sensors were provided to the DAQ.")
 
-        stop_event = stop_event or self._stop_event
+        if stop_event is None:
+            stop_event = self._stop_event
 
         for sensor in sensors:
             sensor.configure_labjack(self.ljm, self)
@@ -423,9 +422,12 @@ class Labjack(ABC):
             for sensor in sensors
         }
 
-        self._start_stream(scan_list, num_channels)
+        stream_started = False
 
         try:
+            self._start_stream(scan_list, num_channels)
+            stream_started = True
+
             # Warmup readings seed the rolling averages.
             for _ in range(self.warmup_reads):
                 if stop_event.is_set():
@@ -502,12 +504,13 @@ class Labjack(ABC):
             print("Stream interrupted.")
 
         finally:
-            try:
-                self.ljm.eStreamStop(self.handle)
-            except Exception:
-                streaming_logger.exception(
-                    "Failed to stop LabJack stream."
-                )
+            if stream_started:
+                try:
+                    self.ljm.eStreamStop(self.handle)
+                except Exception:
+                    streaming_logger.exception(
+                        "Failed to stop LabJack stream."
+                    )
 
             print("Stream stopped.")
 

@@ -3,7 +3,10 @@ from dataclasses import dataclass
 from typing import override
 import asyncio
 
-from labjack import ljm
+try:
+    from labjack import ljm
+except ImportError:
+    ljm = None
 
 from server.states import SWITCH_MAPPING
 
@@ -42,19 +45,24 @@ GLOBAL_SWITCH_STATES: dict[str, bool] = {
     key: False for key in SWITCH_OPTIONS.keys()
 }
 
-
 class CommandExecutor:
-    def __init__(self, handle: LabjackHandle) -> None:
+    def __init__(self, handle, ljm_api=None):
         self.handle = handle
+        self.ljm = ljm_api if ljm_api is not None else ljm
 
-    async def listen_for_commands(self, commands: list[Command]):
-        for command in commands:
-            await command.execute(self.handle)
+        if self.ljm is None:
+            raise RuntimeError("LabJack LJM API is not available.")
 
+        self._lock = asyncio.Lock()
+
+    async def listen_for_commands(self, commands):
+        async with self._lock:
+            for command in commands:
+                await command.execute(self.handle, self.ljm)
 
 class Command(ABC):
     @abstractmethod
-    async def execute(self, handle: LabjackHandle):
+    async def execute(self, handle, ljm_api):
         raise NotImplementedError
 
 
@@ -63,8 +71,8 @@ class Start(Command):
         self.switch_id = id
 
     @override
-    async def execute(self, handle: LabjackHandle):
-        ljm.eWriteName(handle, str(self.switch_id), 1)
+    async def execute(self, handle, ljm_api):
+        ljm_api.eWriteName(handle, str(self.switch_id), 1)
         GLOBAL_SWITCH_STATES[self.switch_id.switch()] = True
 
 
@@ -73,8 +81,8 @@ class Stop(Command):
         self.switch_id = id
 
     @override
-    async def execute(self, handle: LabjackHandle):
-        ljm.eWriteName(handle, str(self.switch_id), 0)
+    async def execute(self, handle, ljm_api):
+        ljm_api.eWriteName(handle, str(self.switch_id), 0)
         GLOBAL_SWITCH_STATES[self.switch_id.switch()] = False
 
 
@@ -84,5 +92,7 @@ class Timeout(Command):
         self.duration = duration
 
     @override
-    async def execute(self, handle: LabjackHandle):
+    async def execute(self, handle, ljm_api):
         await asyncio.sleep(self.duration)
+
+

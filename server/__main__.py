@@ -1,81 +1,108 @@
 import asyncio
 import os
-from dataclasses import dataclass
 
 import uvicorn
 from dotenv import load_dotenv
 
-from server.streaming.lj import LabjackT7
-# from server.streaming.sensors import load_sensors_from_json
-from server.bridge import Bridge
-from threading import Thread
-
-from server.streaming.grafana_live import GrafanaLivePublisher
 from server.logger import server_logger as logger
+from server.streaming.grafana_live import GrafanaLivePublisher
+from server.streaming.influx_writer import InfluxPublisher
 from server.streaming.stream import init_streaming
+from server.streaming import stream as streaming
 from server.web.app import init_app, init_db
 
-
-@dataclass
-class Sensor():
-    stream_id: str
-
-async def start():
-    loop = asyncio.get_running_loop()
-
-    # t7 = LabjackT7(datapool)
-    # sensors = load_sensors_from_json("labjack_channels.json", board="T7")
-
-    # thread = Thread(
-    #     target=t7.stream,
-    #     args=(sensors, loop),
-    #     daemon=True
-    # )
-    # thread.start()
-
-    await init_db()
-    app = init_app()
-    # init_grafana_live()
-    init_streaming(loop)
-
-    # sensors = [Sensor("asdf")] * 3
-    # grafana_live_publishers = [GrafanaLivePublisher(stream_id=sensor.stream_id) for sensor in sensors]
-
-    logger.info("Listening on http://localhost:8000")
-    config = uvicorn.Config(app, host="0.0.0.0", port=8000)
-    server = uvicorn.Server(config)
-
+async def start(grafana, influx):
+    t7 = None
+    worker = None
+   
     try:
+        loop = asyncio.get_running_loop()
+
+        if grafana is not None:
+            await grafana.connect()
+
+        await init_db()
+        app = init_app()
+        
+        t7, worker = init_streaming(
+            loop = loop,
+            grafana_publisher=grafana,
+            influx_publisher=influx,
+        )
+
+        logger.info("Listening on http://localhost:8000")
+
+        config = uvicorn.Config(app, host="0.0.0.0", port=8000)
+        server = uvicorn.Server(config)
         await server.serve()
+
     finally:
         logger.info("[Shutdown] cleaning up...")
-        # for publisher in grafana_live_publishers:
-        #     await publisher.close()
+        if t7 is not None:
+            t7.stop()
+        if worker is not None:
+            worker.join(timeout=5)
+            if worker.is_alive():
+                logger.critical(
+                    "LabJack acquisition thread did not stop. "
+                    "Labjack handle will remain open."
+                )
+            else:
+                if t7 is not None:
+                    t7.close()
+                streaming.clear_command_executor()
+        elif t7 is not None:
+            t7.close()
+            streaming.clear_command_executor()
+        if grafana is not None:
+            await grafana.close()
 
 
 def main():
     load_dotenv()
-    influx_url = os.getenv("INFLUXDB_URL")
-    influx_token = os.getenv("INFLUXDB_TOKEN")
-    influx_database = os.getenv("INFLUXDB_DATABASE")
-    mqtt_host = os.getenv("MQTT_HOST")
-    mqtt_port = int(os.getenv("MQTT_PORT", 1883))
-    influx_exists = all([influx_url, influx_token, influx_database, mqtt_host])
 
-    if influx_exists:
-        bridge = Bridge(
-            influx_url, influx_token, influx_database, mqtt_host, mqtt_port
-        )
-        bridge.start()
+    grafana = None
+    influx = None
 
-    print(f"influx exists: {influx_exists}")
 
     try:
-        asyncio.run(start())
+        # Initialize Grafana Live publisher.
+        if os.getenv("GRAFANA_TOKEN"):
+            grafana = GrafanaLivePublisher()
+        else:
+            logger.warning(
+                "GRAFANA_TOKEN not set. Grafana Live publishing disabled."
+            )
+
+        # Initialize InfluxDB publisher.
+        influx_url = os.getenv("INFLUXDB_URL")
+        influx_token = os.getenv("INFLUXDB_TOKEN")
+        influx_database = os.getenv("INFLUXDB_DATABASE")
+
+        if all([influx_url, influx_token, influx_database]):
+            influx = InfluxPublisher(
+                host=influx_url,
+                token=influx_token,
+                database=influx_database,
+            )
+        else:
+            logger.warning(
+                "InfluxDB configuration incomplete. "
+                "InfluxDB publishing disabled."
+            )
+
+        asyncio.run(start(grafana, influx))
+
     except KeyboardInterrupt:
-        pass
+        logger.info("Shutting down server.")
+
+    except Exception:
+        logger.exception("Application failed.")
+        raise
+
     finally:
-        logger.info("Shutting down server")
+        if influx is not None:
+            influx.close()
 
 
 if __name__ == "__main__":
