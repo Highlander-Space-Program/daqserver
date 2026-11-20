@@ -26,16 +26,31 @@ def group_by_sensor_type(sensors: list[dict]) -> dict[str, list[dict]]:
         groups.setdefault(sensor_type, []).append(sensor)
     return groups
 
+LIVE_CHANNELS = {
+    "pressure": "stream/daq/pressuretransducer",
+    "pt": "stream/daq/pressuretransducer",
 
-def build_panel(panel_id: int, title: str, sensors: list[dict], y_pos: int) -> dict:
-    """Build a Grafana panel definition for a group of sensors."""
+    "thermocouple": "stream/daq/thermocouple",
+    "tc": "stream/daq/thermocouple",
+
+    "loadcell": "stream/daq/loadcell",
+    "load_cell": "stream/daq/loadcell",
+    "lc": "stream/daq/loadcell",
+}
+
+def build_panel(panel_id, title, sensors, y_pos, sensor_type):
+
+    channel = LIVE_CHANNELS[sensor_type]
+
     targets = []
+
     for i, sensor in enumerate(sensors):
         ain = sensor.get("AIN", "")
         display_name = sensor.get("DisplayName", ain)
+
         targets.append({
-            "refId": chr(65 + i),  # A, B, C...
-            "channel": f"stream/daq/{ain.lower()}",
+            "refId": chr(65 + i),
+            "channel": channel,
             "alias": display_name,
         })
 
