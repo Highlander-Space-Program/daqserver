@@ -10,6 +10,7 @@ from server.streaming.influx_writer import InfluxPublisher
 from server.streaming.stream import init_streaming
 from server.streaming import stream as streaming
 from server.web.app import init_app, init_db
+from server.grafana_setup import setup_grafana_dashboard
 
 async def start(grafana, influx):
     t7 = None
@@ -22,6 +23,7 @@ async def start(grafana, influx):
             await grafana.connect()
 
         await init_db()
+        setup_grafana_dashboard()
         app = init_app()
         
         t7, worker = init_streaming(

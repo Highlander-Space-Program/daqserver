@@ -4,20 +4,23 @@
         "AIN": "AIN80",
         "SensorType": "Pressure",
         "Differential": false,
-        "Board": "T7"
+        "Board": "T7",
+        "DisplayName": "Chamber Pressure"
     },
     {
         "Type": "AIN",
         "AIN": "AIN81",
         "SensorType": "Pressure",
         "Differential": false,
-        "Board": "T7"
+        "Board": "T7",
+        "DsiplayName": "Tank Pressure"
     },
     {
         "Type": "AIN",
         "AIN": "AIN48",
         "SensorType": "loadcell",
         "Differential": false,
-        "Board": "T7"
+        "Board": "T7",
+        "DisplayName": "Thrust Load Cell"
     }
 ]
