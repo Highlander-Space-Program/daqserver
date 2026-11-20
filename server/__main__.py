@@ -24,7 +24,7 @@ async def start(grafana, influx):
             await grafana.connect()
 
         await init_db()
-        setup_grafana_dashboard()
+#        setup_grafana_dashboard()
         app = init_app()
 
         t7, worker = init_streaming(
