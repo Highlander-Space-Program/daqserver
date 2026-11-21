@@ -6,9 +6,6 @@ from concurrent.futures import CancelledError
 from server.streaming.lj import LabjackT7
 from server.streaming.sensors import load_sensors_from_json
 from server.logger import streaming_logger
-from server.streaming.switches import CommandExecutor
-
-command_executor = None
 
 def init_streaming(
     loop,
@@ -16,8 +13,6 @@ def init_streaming(
     influx_publisher=None,
     config_path="labjack_channels.json",
 ):
-    global command_executor
-
     backend_name = os.getenv("DAQ_BACKEND", "real").lower()
 
     sensors = load_sensors_from_json(
@@ -85,11 +80,6 @@ def init_streaming(
 
         t7.open("ANY", "VIRTUAL")
 
-        command_executor = CommandExecutor(
-            handle=t7.handle,
-            ljm_api=t7.ljm,
-        )
-
     elif backend_name == "real":
         t7 = LabjackT7(
             manager=None,
@@ -100,11 +90,6 @@ def init_streaming(
         t7.open(
             os.getenv("LABJACK_CONNECTION", "Ethernet"),
             os.getenv("LABJACK_IDENTIFIER", "10.10.10.20"),
-        )
-
-        command_executor = CommandExecutor(
-            handle=t7.handle,
-            ljm_api=t7.ljm,
         )
 
     else:
@@ -135,9 +120,3 @@ def _log_future_error(future, message):
         pass
     except Exception:
         streaming_logger.exception(message)
-
-def clear_command_executor():
-    global command_executor
-    command_executor = None
-
-

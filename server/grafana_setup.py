@@ -12,10 +12,6 @@ import os
 import httpx
 
 
-GRAFANA_URL = os.getenv("GRAFANA_URL", "http://localhost:3000")
-GRAFANA_TOKEN = os.getenv("GRAFANA_TOKEN")
-CONFIG_PATH = os.getenv("DAQ_CONFIG", "labjack_channels.json")
-
 
 def load_config(path: str) -> list[dict]:
     with open(path) as f:
@@ -105,19 +101,23 @@ def build_dashboard(groups: dict[str, list[dict]]) -> dict:
     }
 
 
-def setup_grafana_dashboard(config_path: str = CONFIG_PATH):
+def setup_grafana_dashboard():
     """
     Main entry point. Reads config and pushes dashboard to Grafana API.
     Call this on server startup.
     """
+    GRAFANA_URL = os.getenv("GRAFANA_URL", "http://localhost:3000")
+    GRAFANA_TOKEN = os.getenv("GRAFANA_TOKEN")
+    CONFIG_PATH = os.getenv("DAQ_CONFIG", "labjack_channels.json")
+
     if not GRAFANA_TOKEN:
         print("[GrafanaSetup] GRAFANA_TOKEN not set, skipping dashboard setup.")
         return
 
     try:
-        sensors = load_config(config_path)
+        sensors = load_config(CONFIG_PATH)
     except FileNotFoundError:
-        print(f"[GrafanaSetup] Config file not found: {config_path}")
+        print(f"[GrafanaSetup] Config file not found: {CONFIG_PATH}")
         return
 
     groups = group_by_sensor_type(sensors)

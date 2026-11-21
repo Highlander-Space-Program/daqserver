@@ -11,6 +11,7 @@ from server.streaming.stream import init_streaming
 from server.streaming import stream as streaming
 from server.web.app import init_app, init_db
 from server.grafana_setup import setup_grafana_dashboard
+from labjack.ljm import LJMError
 
 async def start(grafana, influx):
     t7 = None
@@ -25,7 +26,7 @@ async def start(grafana, influx):
         await init_db()
         setup_grafana_dashboard()
         app = init_app()
-        
+
         t7, worker = init_streaming(
             loop = loop,
             grafana_publisher=grafana,
@@ -37,6 +38,12 @@ async def start(grafana, influx):
         config = uvicorn.Config(app, host="0.0.0.0", port=8000)
         server = uvicorn.Server(config)
         await server.serve()
+    except AttributeError:
+        logger.warning(
+            "Unable to open labjack due to not having the right libraries and drivers"
+        )
+    except LJMError:
+        logger.warning("Unable to open t7 labjack through ethernet")
 
     finally:
         logger.info("[Shutdown] cleaning up...")
@@ -52,13 +59,10 @@ async def start(grafana, influx):
             else:
                 if t7 is not None:
                     t7.close()
-                streaming.clear_command_executor()
         elif t7 is not None:
             t7.close()
-            streaming.clear_command_executor()
         if grafana is not None:
             await grafana.close()
-
 
 def main():
     load_dotenv()
