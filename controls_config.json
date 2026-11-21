@@ -1,0 +1,25 @@
+{
+  "commands": {
+    "Igniter": { "arm": "0x00", "abort": "0x01" },
+    "Auto Ignition": { "arm": "0x02", "abort": "0x03" },
+    "Servos": { "arm": "0x04", "abort": "0x05" },
+    "Servo 1": { "arm": "0x06", "abort": "0x07" },
+    "Servo 2": { "arm": "0x08", "abort": "0x09" },
+    "Servo 3": { "arm": "0x0A", "abort": "0x0B" },
+    "Igniter_Actual": { "arm": "0x0C", "abort": "0x0D" },
+    "LED": { "arm": "0x0F", "abort": "0x0E" }
+  },
+  "system_flags": {
+    "Igniter": true,
+    "Servos": true,
+    "Auto Ignition": true
+  },
+  "servos": ["Servo 1", "Servo 2", "Servo 3"],
+  "boards": ["Igniter Board", "Servo Board"],
+  "ping": {
+    "led_blink_count": 3,
+    "led_blink_delay_seconds": 0.25
+  },
+  "mock_xbee_port": "/dev/mockUSB0",
+  "command_response_timeout_seconds": 3.0
+}

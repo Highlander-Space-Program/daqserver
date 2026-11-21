@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 import pytest
 
+from server.mqtt import CommandRejected, CommandTimeout, PublisherUnavailable
 from server.web.routes import control
 from server.web.routes.control import router, state
 
@@ -15,8 +16,10 @@ class FakeControlPublisher:
 
 
 class DisabledControlPublisher(FakeControlPublisher):
-    def send_command(self, command: int):
-        return False
+    async def send_command(self, command: int, timeout: float = 3.0):
+        raise PublisherUnavailable(
+            "MQTT control publisher is not connected", command, None
+        )
 
 
 class RecordingControlPublisher(FakeControlPublisher):
@@ -24,9 +27,19 @@ class RecordingControlPublisher(FakeControlPublisher):
         super().__init__()
         self.commands = []
 
-    def send_command(self, command: int):
+    async def send_command(self, command: int, timeout: float = 3.0):
         self.commands.append(command)
-        return True
+        return {"id": len(self.commands), "status": "Ok", "message": ""}
+
+
+class FailingControlPublisher(FakeControlPublisher):
+    def __init__(self, error_cls, message):
+        super().__init__()
+        self.error_cls = error_cls
+        self.message = message
+
+    async def send_command(self, command: int, timeout: float = 3.0):
+        raise self.error_cls(self.message, command, 7)
 
 
 def make_client(publisher):
@@ -171,6 +184,30 @@ def test_servo_route_does_not_update_state_when_mqtt_is_disabled():
         "detail": "MQTT control publisher is not connected"
     }
     assert state["servos"][0]["status"] == "CLOSED"
+
+
+@pytest.mark.parametrize(
+    ("error_cls", "message", "expected_status"),
+    [
+        (CommandTimeout, "no response from board after 3s", 504),
+        (CommandRejected, "servo jammed", 502),
+    ],
+)
+def test_servo_failure_logs_error_and_keeps_state(
+    error_cls, message, expected_status
+):
+    reset_servo_state()
+    client = make_client(FailingControlPublisher(error_cls, message))
+
+    response = client.post("/controls/api/servo/open", json={"row": 0})
+
+    assert response.status_code == expected_status
+    assert response.json() == {"detail": message}
+    assert state["servos"][0]["status"] == "CLOSED"
+    assert len(state["event_log"]) == 1
+    assert state["event_log"][0].endswith(
+        f"Command 0x06 (id 7) failed: {message}"
+    )
 
 
 def test_ping_board_blinks_led_three_times(monkeypatch):
