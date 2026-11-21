@@ -70,36 +70,53 @@ class GrafanaLivePublisher:
             .replace("=", "\\=")
         )
 
+
     @classmethod
     def serialize_output(cls, output: SensorOutput) -> str:
-        """Convert SensorOutput to Influx line protocol."""
-        measurement = cls._escape_measurement(
-            output.data_type.value
-        )
+        """Convert SensorOutput into per-AIN Influx line protocol."""
 
         source = output.source.to_dict()
-        tags = []
 
+        # The actual AIN identifier is stored in cb37_pin.
+        ain = source.get("cb37_pin")
+
+        if ain is None:
+            raise ValueError(
+                f"Sensor output is missing cb37_pin: {source}"
+            ) 
+
+        # Each AIN gets its own measurement and Live channel.
+        measurement = cls._escape_measurement(
+            str(ain).lower()
+        ) 
+
+        tags = {
+            "ain": str(ain).upper(),
+            "sensor_type": str(output.data_type.value).lower(),
+        }
+
+        # Preserve existing sensor metadata.
         for key, value in source.items():
             if value is None:
                 continue
 
-            escaped_key = cls._escape_tag(key)
-            escaped_value = cls._escape_tag(value)
-            tags.append(f"{escaped_key}={escaped_value}")
+            normalized_key = key.lower()
 
-        # Add the data type as an explicit tag too.
-        tags.append(
-            f"data_type={cls._escape_tag(output.data_type.value)}"
+            if normalized_key == "cb37_pin":
+                continue
+
+            tags[normalized_key] = str(value)
+
+        tag_string = ",".join(
+            f"{cls._escape_tag(key)}={cls._escape_tag(value)}"
+            for key, value in sorted(tags.items())
         )
 
-        tag_string = "," + ",".join(tags) if tags else ""
         lines = []
 
         for sample in output.data:
             timestamp = sample.time
 
-            # Treat naive datetimes as local time, then convert to UTC.
             if timestamp.tzinfo is None:
                 timestamp = timestamp.astimezone()
 
@@ -109,11 +126,12 @@ class GrafanaLivePublisher:
             )
 
             lines.append(
-                f"{measurement}{tag_string} "
+                f"{measurement},{tag_string} "
                 f"value={float(sample.value)} {timestamp_ns}"
-            )
+            ) 
 
         return "\n".join(lines)
+
 
     async def publish_output(self, output: SensorOutput):
         """Publish a SensorOutput directly, without Datapool."""

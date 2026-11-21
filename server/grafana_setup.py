@@ -10,7 +10,7 @@ Called once on server startup when GRAFANA_TOKEN is set.
 import json
 import os
 import httpx
-
+from server.states import PIN_MAPPING
 
 
 def load_config(path: str) -> list[dict]:
@@ -38,63 +38,78 @@ LIVE_CHANNELS = {
     "lc": "stream/daq/loadcell",
 }
 
-def build_panel(panel_id, title, sensors, y_pos, sensor_type):
+def build_panel(panel_id, sensor_type, sensors, y_pos):
+    type_titles = {
+        "pressure": "Pressure Transducers (psi)",
+        "pt": "Pressure Transducers (psi)",
+        "loadcell": "Load Cells (lbf)",
+        "lc": "Load Cells (lbf)",
+        "thermocouple": "Thermocouples (°C)",
+        "tc": "Thermocouples (°C)",
+    }
 
-    channel = LIVE_CHANNELS[sensor_type]
+    title = type_titles.get(sensor_type.lower(), sensor_type.capitalize())
 
-    targets = []
+    queries = []
 
-    for i, sensor in enumerate(sensors):
-        ain = sensor.get("AIN", "")
-        display_name = sensor.get("DisplayName", ain)
+    for index, sensor in enumerate(sensors):
+        config_ain = sensor["AIN"]
 
-        targets.append({
-            "refId": chr(65 + i),
-            "channel": channel,
-            "alias": display_name,
+        pin_info = PIN_MAPPING.get(config_ain)
+        if pin_info is None:
+            raise ValueError(f"No PIN_MAPPING entry for {config_ain}")
+
+        physical_ain = pin_info["cb37_pin"]
+
+        queries.append({
+            "kind": "PanelQuery",
+            "spec": {
+                "query": {
+                    "kind": "DataQuery",
+                    "group": "datasource",
+                    "version": "v0",
+                    "datasource": {
+                        "name": "grafana"
+                    },
+                    "spec": {
+                        "channel": f"stream/daq/{physical_ain.lower()}",
+                        "filter": {
+                            "fields": []
+                        },
+                        "queryType": "measurements",
+                    },
+                },
+                "refId": chr(65 + index),
+                "hidden": False,
+            },
         })
 
     return {
         "id": panel_id,
         "type": "timeseries",
         "title": title,
-        "gridPos": {"x": 0, "y": y_pos, "w": 24, "h": 8},
-        "datasource": {"type": "grafana-live-datasource"},
-        "targets": targets,
-        "fieldConfig": {
-            "defaults": {
-                "color": {"mode": "palette-classic"},
-                "custom": {
-                    "lineWidth": 2,
-                    "fillOpacity": 10,
-                },
-            }
+        "gridPos": {
+            "x": 0,
+            "y": y_pos,
+            "w": 24,
+            "h": 8,
         },
-        "options": {
-            "tooltip": {"mode": "multi"},
-            "legend": {"displayMode": "list", "placement": "bottom"},
-        },
+        "targets": queries,
     }
 
-
-def build_dashboard(groups: dict[str, list[dict]]) -> dict:
-    """Build the full Grafana dashboard definition."""
+def build_dashboard(groups):
     panels = []
     panel_id = 1
     y_pos = 0
 
-    type_titles = {
-        "pressure": "Pressure Transducers (psi)",
-        "loadcell": "Load Cells (lbf)",
-        "thermocouple": "Thermocouples (°C)",
-        "tc": "Thermocouples (°C)",
-        "lc": "Load Cells (lbf)",
-        "pt": "Pressure Transducers (psi)",
-    }
-
     for sensor_type, sensors in groups.items():
-        title = type_titles.get(sensor_type, sensor_type.capitalize())
-        panel = build_panel(panel_id, title, sensors, y_pos)
+        panel = build_panel(
+            panel_id,
+            sensor_type,
+            sensors,
+            y_pos,
+        )
+
         panels.append(panel)
         panel_id += 1
         y_pos += 8
@@ -108,13 +123,16 @@ def build_dashboard(groups: dict[str, list[dict]]) -> dict:
             "timezone": "browser",
             "schemaVersion": 38,
             "version": 1,
-            "refresh": "1s",
+            "refresh": "",
+            "time": {
+                "from": "now-30m",
+                "to": "now",
+            },
             "panels": panels,
         },
         "folderId": 0,
         "overwrite": True,
     }
-
 
 def setup_grafana_dashboard():
     """
