@@ -5,7 +5,6 @@
         "SensorType": "Pressure",
         "Differential": false,
         "Board": "T7",
-        "DisplayName": "Chamber Pressure"
     },
     {
         "Type": "AIN",
@@ -13,7 +12,6 @@
         "SensorType": "Pressure",
         "Differential": false,
         "Board": "T7",
-        "DsiplayName": "Tank Pressure"
     },
     {
         "Type": "AIN",
@@ -21,6 +19,5 @@
         "SensorType": "loadcell",
         "Differential": false,
         "Board": "T7",
-        "DisplayName": "Thrust Load Cell"
     }
 ]
