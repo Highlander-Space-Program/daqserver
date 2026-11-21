@@ -1,0 +1,21 @@
+
+apiVersion: 1
+
+datasources:
+  - name: InfluxDB
+    uid: efkskoo5hsbuod
+    type: influxdb
+    access: proxy
+    url: http://influxdb-core:8181
+    isDefault: false
+    editable: true
+
+    jsonData:
+      version: SQL
+      dbName: daqDB
+      httpMode: POST
+      insecureGrpc: true
+
+    secureJsonData:
+      token: $INFLUXDB_TOKEN
+

@@ -14,5 +14,4 @@ let currentGraphPage = 0;
 let selectedValueGraphIds = [null, null, null];
 const GRAPHS_PER_PAGE = 10;
 
-const chartInstances = {};
 let wsConnection = null;

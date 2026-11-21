@@ -185,8 +185,6 @@ function renderGraphs() {
     const panel = document.createElement("div");
     panel.className = "graph-panel";
 
-    const canvasId = `chart-${graph.id}`;
-
     panel.innerHTML = `
             <div class="graph-top">
                 <div>
@@ -199,9 +197,6 @@ function renderGraphs() {
                 <button class="tiny-btn delete-btn">Delete</button>
                 <button class="tiny-btn zoom-btn">Zoom</button>
                 </div>
-            </div>
-            <div class="chart-wrap">
-                <canvas id="${canvasId}"></canvas>
             </div>
         `;
 
@@ -223,37 +218,17 @@ function renderGraphs() {
         };
 
         zoomBtn.onclick = () => {
-          const chart = chartInstances[graph.id];
-        
           if (panel.classList.contains("graph-panel-expanded")) {
             panel.classList.remove("graph-panel-expanded");
             zoomBtn.textContent = "Zoom";
-        
-            if (chart) {
-              chart.canvas.style.width = "100%";
-              chart.canvas.style.height = "100%";
-        
-              setTimeout(() => {
-                chart.resize();
-                chart.update("none");
-              }, 100);
-            }
           } else {
             panel.classList.add("graph-panel-expanded");
             zoomBtn.textContent = "Unzoom";
-        
-            if (chart) {
-              setTimeout(() => {
-                chart.resize();
-                chart.update("none");
-              }, 100);
-            }
           }
         };
 
     dashboardGrid.appendChild(panel);
-    buildBlankChart(canvasId, graph.name, graph.id);
-  });
+      });
 
   while (dashboardGrid.children.length < GRAPHS_PER_PAGE) {
     const skeleton = document.createElement("button");

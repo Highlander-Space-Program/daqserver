@@ -278,21 +278,6 @@ body.graph-zoom-open {
     font-weight: 800;
 }
 
-.chart-wrap {
-    height: 260px;
-    min-width: 0;
-    position: relative;
-}
-
-.chart-wrap canvas {
-    width: 100% !important;
-    height: 100% !important;
-    display: block;
-}
-
-.graph-panel-expanded .chart-wrap {
-    height: 620px;
-}
 
 .skeleton-graph {
     color: white;
