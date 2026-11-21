@@ -1,16 +1,38 @@
+
 """
 grafana_setup.py
 
-Reads labjack_channels.json and calls the Grafana HTTP API to create
-a dashboard with one panel per sensor type (Pressure, Loadcell, Thermocouple).
+Automatically creates and reconciles the DAQ Live Dashboard.
 
-Called once on server startup when GRAFANA_TOKEN is set.
+- One panel per configured sensor.
+- Uses config_ain directly as the Grafana Live channel.
+- Uses Live Measurements as the query type.
+- Adds missing panels.
+- Updates panels whose configuration changed.
+- Leaves unchanged panels and dashboards untouched.
+- Preserves unrelated dashboard panels.
+
+Requires Grafana 12+.
 """
 
 import json
 import os
+import zlib
+
 import httpx
-from server.states import PIN_MAPPING
+
+
+DASHBOARD_UID = "daq-auto"
+DASHBOARD_TITLE = "DAQ Live Dashboard"
+API_VERSION = "dashboard.grafana.app/v1"
+TYPE_TITLES = {
+    "pressure": "Pressure Transducers (psi)",
+    "loadcell": "Load Cells (lbf)",
+    "thermocouple": "Thermocouples (°C)",
+    "tc": "Thermocouples (°C)",
+    "lc": "Load Cells (lbf)",
+    "pt": "Pressure Transducers (psi)",
+}
 
 
 def load_config(path: str) -> list[dict]:
@@ -18,110 +40,202 @@ def load_config(path: str) -> list[dict]:
         return json.load(f)
 
 
-def group_by_sensor_type(sensors: list[dict]) -> dict[str, list[dict]]:
-    """Group sensors by their SensorType field."""
-    groups: dict[str, list[dict]] = {}
-    for sensor in sensors:
-        sensor_type = sensor.get("SensorType", "Unknown").lower()
-        groups.setdefault(sensor_type, []).append(sensor)
-    return groups
+def build_panel(sensor: dict, y_pos: int) -> dict:
+    """Build one panel for one sensor."""
 
-LIVE_CHANNELS = {
-    "pressure": "stream/daq/pressuretransducer",
-    "pt": "stream/daq/pressuretransducer",
+    config_ain = sensor["AIN"]
 
-    "thermocouple": "stream/daq/thermocouple",
-    "tc": "stream/daq/thermocouple",
+    # Stable panel ID based on the sensor's AIN.
+    panel_id = zlib.crc32(config_ain.encode()) & 0x7FFFFFFF
+    panel_id = max(panel_id, 1)
 
-    "loadcell": "stream/daq/loadcell",
-    "load_cell": "stream/daq/loadcell",
-    "lc": "stream/daq/loadcell",
-}
-
-def build_panel(panel_id, sensor_type, sensors, y_pos):
-    type_titles = {
-        "pressure": "Pressure Transducers (psi)",
-        "pt": "Pressure Transducers (psi)",
-        "loadcell": "Load Cells (lbf)",
-        "lc": "Load Cells (lbf)",
-        "thermocouple": "Thermocouples (°C)",
-        "tc": "Thermocouples (°C)",
-    }
-
-    title = type_titles.get(sensor_type.lower(), sensor_type.capitalize())
-
-    queries = []
-
-    for index, sensor in enumerate(sensors):
-        config_ain = sensor["AIN"]
-
-        pin_info = PIN_MAPPING.get(config_ain)
-        if pin_info is None:
-            raise ValueError(f"No PIN_MAPPING entry for {config_ain}")
-
-        physical_ain = pin_info["cb37_pin"]
-
-        queries.append({
-            "kind": "PanelQuery",
-            "spec": {
-                "query": {
-                    "kind": "DataQuery",
-                    "group": "datasource",
-                    "version": "v0",
-                    "datasource": {
-                        "name": "grafana"
-                    },
-                    "spec": {
-                        "channel": f"stream/daq/{physical_ain.lower()}",
-                        "filter": {
-                            "fields": []
-                        },
-                        "queryType": "measurements",
-                    },
-                },
-                "refId": chr(65 + index),
-                "hidden": False,
-            },
-        })
+    sensor_type = sensor.get("SensorType", "Unknown").lower()
+    title = TYPE_TITLES.get(sensor_type, sensor_type.capitalize()) + " - " + sensor.get("Name", config_ain)
 
     return {
         "id": panel_id,
         "type": "timeseries",
         "title": title,
+        "description": f"DAQ managed sensor: {config_ain}",
         "gridPos": {
             "x": 0,
             "y": y_pos,
             "w": 24,
             "h": 8,
         },
-        "targets": queries,
+        "datasource": {
+            "type": "grafana",
+            "uid": "grafana",
+        },
+        "targets": [
+            {
+                "refId": "A",
+                "queryType": "measurements",
+                "channel": f"stream/daq/{config_ain.lower()}",
+                "datasource": {
+                    "type": "grafana",
+                    "uid": "grafana",
+                },
+            }
+        ],
     }
 
-def build_dashboard(groups):
+
+def managed_sensor(panel: dict) -> str | None:
+    """Return the AIN of a DAQ-managed panel."""
+
+    description = panel.get("description", "")
+    prefix = "DAQ managed sensor: "
+
+    if description.startswith(prefix):
+        return description[len(prefix):]
+
+    return None
+
+
+def panel_needs_update(
+    current: dict,
+    desired: dict,
+) -> bool:
+    """Compare the properties managed by this script."""
+
+    managed_fields = [
+        "title",
+        "description",
+        "type",
+        "datasource",
+        "targets",
+        "gridPos",
+    ]
+
+    return any(
+        current.get(field) != desired.get(field)
+        for field in managed_fields
+    )
+
+
+def reconcile_panels(
+    current_panels: list[dict],
+    sensors: list[dict],
+) -> tuple[list[dict], bool]:
+    """
+    Compare configured sensors with existing dashboard panels.
+
+    Returns:
+        (updated_panels, changed)
+    """
+
+    panels = list(current_panels)
+    changed = False
+
+    # Index existing DAQ-managed panels by AIN.
+    existing = {}
+
+    for panel in panels:
+        config_ain = managed_sensor(panel)
+
+        if config_ain is not None:
+            if config_ain in existing:
+                raise ValueError(
+                    f"Duplicate DAQ panel for {config_ain}"
+                )
+
+            existing[config_ain] = panel
+
+    # Find the next available vertical position.
+    y_pos = max(
+        (
+            panel.get("gridPos", {}).get("y", 0)
+            + panel.get("gridPos", {}).get("h", 8)
+            for panel in panels
+        ),
+        default=0,
+    )
+
+    used_ids = {
+        panel.get("id")
+        for panel in panels
+        if panel.get("id") is not None
+    }
+
+    configured_ains = set()
+
+    for sensor in sensors:
+        config_ain = sensor["AIN"]
+
+        if config_ain in configured_ains:
+            raise ValueError(
+                f"Duplicate AIN in sensor configuration: {config_ain}"
+            )
+
+        configured_ains.add(config_ain)
+
+        desired = build_panel(sensor, y_pos)
+
+        panel_id = desired["id"]
+
+        if panel_id in used_ids:
+            # An existing panel for this AIN can reuse its ID.
+            current = existing.get(config_ain)
+
+            if current is None or current.get("id") != panel_id:
+                raise ValueError(
+                    f"Panel ID collision for {config_ain}: {panel_id}"
+                )
+
+        current = existing.get(config_ain)
+
+        if current is None:
+            # Missing panel: add it.
+            panels.append(desired)
+            used_ids.add(panel_id)
+
+            print(
+                f"[GrafanaSetup] Added panel: {config_ain}"
+            )
+
+            y_pos += 8
+            changed = True
+
+        elif panel_needs_update(current, desired):
+            # Existing panel: update only if necessary.
+            current.update(desired)
+
+            print(
+                f"[GrafanaSetup] Updated panel: {config_ain}"
+            )
+
+            changed = True
+
+        else:
+            print(
+                f"[GrafanaSetup] Unchanged panel: {config_ain}"
+            )
+
+    return panels, changed
+
+
+def build_new_dashboard(sensors: list[dict]) -> dict:
+    """Create the initial dashboard resource."""
+
     panels = []
-    panel_id = 1
     y_pos = 0
 
-    for sensor_type, sensors in groups.items():
-        panel = build_panel(
-            panel_id,
-            sensor_type,
-            sensors,
-            y_pos,
-        )
-
-        panels.append(panel)
-        panel_id += 1
+    for sensor in sensors:
+        panels.append(build_panel(sensor, y_pos))
         y_pos += 8
 
     return {
-        "dashboard": {
-            "id": None,
-            "uid": "daq-auto",
-            "title": "DAQ Live Dashboard",
+        "kind": "Dashboard",
+        "apiVersion": API_VERSION,
+        "metadata": {
+            "name": DASHBOARD_UID,
+        },
+        "spec": {
+            "title": DASHBOARD_TITLE,
             "tags": ["daq", "auto-generated"],
             "timezone": "browser",
-            "schemaVersion": 38,
+            "schemaVersion": 41,
             "version": 1,
             "refresh": "",
             "time": {
@@ -130,44 +244,154 @@ def build_dashboard(groups):
             },
             "panels": panels,
         },
-        "folderId": 0,
-        "overwrite": True,
     }
+
 
 def setup_grafana_dashboard():
-    """
-    Main entry point. Reads config and pushes dashboard to Grafana API.
-    Call this on server startup.
-    """
-    GRAFANA_URL = os.getenv("GRAFANA_URL", "http://localhost:3000")
-    GRAFANA_TOKEN = os.getenv("GRAFANA_TOKEN")
-    CONFIG_PATH = os.getenv("DAQ_CONFIG", "labjack_channels.json")
+    """Create or reconcile the DAQ dashboard."""
 
-    if not GRAFANA_TOKEN:
-        print("[GrafanaSetup] GRAFANA_TOKEN not set, skipping dashboard setup.")
+    grafana_url = os.getenv(
+        "GRAFANA_URL",
+        "http://localhost:3000",
+    ).rstrip("/")
+
+    grafana_token = os.getenv("GRAFANA_TOKEN")
+
+    namespace = os.getenv(
+        "GRAFANA_NAMESPACE",
+        "default",
+    )
+
+    config_path = os.getenv(
+        "DAQ_CONFIG",
+        "labjack_channels.json",
+    )
+
+    if not grafana_token:
+        print(
+            "[GrafanaSetup] GRAFANA_TOKEN not set. "
+            "Skipping dashboard setup."
+        )
         return
 
     try:
-        sensors = load_config(CONFIG_PATH)
-    except FileNotFoundError:
-        print(f"[GrafanaSetup] Config file not found: {CONFIG_PATH}")
-        return
+        sensors = load_config(config_path)
 
-    groups = group_by_sensor_type(sensors)
-    dashboard_payload = build_dashboard(groups)
+    except FileNotFoundError:
+        print(
+            f"[GrafanaSetup] Config file not found: {config_path}"
+        )
+        return
 
     headers = {
-        "Authorization": f"Bearer {GRAFANA_TOKEN}",
+        "Authorization": f"Bearer {grafana_token}",
         "Content-Type": "application/json",
+        "Accept": "application/json",
     }
 
-    url = f"{GRAFANA_URL}/api/dashboards/db"
+    dashboard_url = (
+        f"{grafana_url}/apis/{API_VERSION}"
+        f"/namespaces/{namespace}/dashboards/{DASHBOARD_UID}"
+    )
 
     try:
-        response = httpx.post(url, json=dashboard_payload, headers=headers, timeout=10)
-        response.raise_for_status()
-        print(f"[GrafanaSetup] Dashboard created: {response.json().get('url', '')}")
+        with httpx.Client(timeout=10) as client:
+
+            # 1. Retrieve existing dashboard.
+            response = client.get(
+                dashboard_url,
+                headers=headers,
+            )
+
+            if response.status_code == 404:
+                # 2. Dashboard doesn't exist: create it.
+                payload = build_new_dashboard(sensors)
+
+                response = client.put(
+                    dashboard_url,
+                    json=payload,
+                    headers=headers,
+                )
+
+                response.raise_for_status()
+
+                print(
+                    "[GrafanaSetup] Dashboard created."
+                )
+
+                return
+
+            response.raise_for_status()
+
+            current = response.json()
+
+            # 3. Get existing dashboard configuration.
+            spec = current["spec"]
+
+            current_panels = spec.get("panels", [])
+
+            # 4. Reconcile configured sensors.
+            updated_panels, panels_changed = reconcile_panels(
+                current_panels,
+                sensors,
+            )
+
+            if not panels_changed:
+                print(
+                    "[GrafanaSetup] Dashboard already up to date. "
+                    "No changes made."
+                )
+                return
+
+            # 5. Preserve everything else in the dashboard.
+            spec["panels"] = updated_panels
+
+            payload = {
+                "kind": "Dashboard",
+                "apiVersion": API_VERSION,
+                "metadata": {
+                    "name": DASHBOARD_UID,
+                    "resourceVersion": (
+                        current.get("metadata", {}).get(
+                            "resourceVersion"
+                        )
+                    ),
+                },
+                "spec": spec,
+            }
+
+            # 6. Only save when changes were detected.
+            response = client.put(
+                dashboard_url,
+                json=payload,
+                headers=headers,
+            )
+
+            response.raise_for_status()
+
+            print(
+                "[GrafanaSetup] Dashboard successfully updated."
+            )
+
+            print(
+                f"[GrafanaSetup] URL: "
+                f"{grafana_url}/d/{DASHBOARD_UID}"
+            )
+
     except httpx.HTTPStatusError as e:
-        print(f"[GrafanaSetup] Failed to create dashboard: {e.response.status_code} {e.response.text}")
+        print(
+            "[GrafanaSetup] HTTP error: "
+            f"{e.response.status_code} {e.response.text}"
+        )
+
     except httpx.RequestError as e:
-        print(f"[GrafanaSetup] Could not reach Grafana at {GRAFANA_URL}: {e}")
+        print(
+            f"[GrafanaSetup] Could not reach Grafana: {e}"
+        )
+
+    except (ValueError, KeyError) as e:
+        print(
+            f"[GrafanaSetup] Configuration error: {e}"
+        )
+
+# vim: et:sw=4
