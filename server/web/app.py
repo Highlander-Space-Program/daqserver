@@ -13,10 +13,10 @@ def init_app():
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         app.state.control_publisher = ControlPublisher()
-
-        yield
-
-        app.state.control_publisher.shutdown()
+        try:
+            yield
+        finally:
+            app.state.control_publisher.shutdown()
         # cleanup if needed
 
     app = FastAPI(lifespan=lifespan)

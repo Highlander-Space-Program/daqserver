@@ -1,41 +1,59 @@
 import asyncio
+import json
+from pathlib import Path
 from server.streaming import stream
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 from starlette.responses import HTMLResponse
-from pydantic import BaseModel
 from datetime import datetime
 
+from server.logger import server_logger as logger
+from server.mqtt import (
+    DEFAULT_COMMAND_TIMEOUT_SECONDS,
+    CommandError,
+    CommandRejected,
+    CommandTimeout,
+    PublisherUnavailable,
+)
 from server.web.resources import templates
 
 
 class ControlCommand(BaseModel):
     command: int
 
+
+# Command codes, servo/board names, etc. live in controls_config.json at the
+# repo root so they can be changed without touching code.
+CONTROLS_CONFIG_PATH = Path(__file__).resolve().parents[3] / "controls_config.json"
+
+
+def load_controls_config(path: Path = CONTROLS_CONFIG_PATH) -> dict:
+    with open(path, "r") as f:
+        return json.load(f)
+
+
+config = load_controls_config()
+
+# Command codes are written as hex strings ("0x06") in the JSON file
 ARM_COMMANDS = {
-    "Igniter": 0x00,
-    "Auto Ignition": 0x02,
-    "Servos": 0x04,
-    "Servo 1": 0x06,
-    "Servo 2": 0x08,
-    "Servo 3": 0x0A,
-    "Igniter_Actual": 0x0C, #not system flag
-    "LED": 0x0F
+    name: int(codes["arm"], 0) for name, codes in config["commands"].items()
 }
-
 ABORT_COMMANDS = {
-    "Igniter": 0x01,
-    "Auto Ignition": 0x03,
-    "Servos": 0x05,
-    "Servo 1": 0x07,
-    "Servo 2": 0x09,
-    "Servo 3": 0x0B,
-    "Igniter_Actual": 0x0D, #not system flag
-    "LED": 0x0E
+    name: int(codes["abort"], 0) for name, codes in config["commands"].items()
 }
 
-LED_BLINK_COUNT = 3
-LED_BLINK_DELAY_SECONDS = 0.25
+LED_BLINK_COUNT = config["ping"]["led_blink_count"]
+LED_BLINK_DELAY_SECONDS = config["ping"]["led_blink_delay_seconds"]
+MOCK_XBEE_PORT = config["mock_xbee_port"]
+COMMAND_TIMEOUT_SECONDS = config.get(
+    "command_response_timeout_seconds", DEFAULT_COMMAND_TIMEOUT_SECONDS
+)
+
+COMMAND_ERROR_STATUS_CODES: dict[type[CommandError], int] = {
+    PublisherUnavailable: 503,
+    CommandTimeout: 504,
+    CommandRejected: 502,
+}
 
 
 router = APIRouter(prefix="/controls", tags=["controls"])
@@ -51,15 +69,31 @@ async def get_breakwire_status(request: Request):
     return request.app.state.control_publisher.get_breakwire_status()
 
 
+async def run_command(request: Request, command: int) -> dict:
+    """Send a command and wait for the board's ack.
+
+    On failure, logs the error (server log + UI event log) and raises an
+    HTTPException so callers never update state for a command that failed.
+    """
+    publisher = request.app.state.control_publisher
+    try:
+        return await publisher.send_command(
+            command, timeout=COMMAND_TIMEOUT_SECONDS
+        )
+    except CommandError as exc:
+        if not isinstance(exc, PublisherUnavailable):
+            label = f"Command 0x{command:02X} (id {exc.command_id})"
+            logger.error("%s failed: %s", label, exc.message)
+            log_event(f"{label} failed: {exc.message}")
+        raise HTTPException(
+            status_code=COMMAND_ERROR_STATUS_CODES.get(type(exc), 500),
+            detail=exc.message,
+        ) from exc
+
+
 @router.post("/api/command")
 async def send_control_command(request: Request, payload: ControlCommand):
-    sent = request.app.state.control_publisher.send_command(payload.command)
-    if not sent:
-        raise HTTPException(
-            status_code=503,
-            detail="MQTT control publisher is not connected",
-        )
-
+    await run_command(request, payload.command)
     return {"success": True}
 
 
@@ -96,23 +130,13 @@ async def get_page(request: Request):
 state = {
     "xbee": {
         "connected": True,
-        "port": "/dev/mockUSB0",
+        "port": MOCK_XBEE_PORT,
         "status": "Connected"
     },
-    "boards": {
-        "Igniter Board": False,
-        "Servo Board": False,
-    },
-    "important_status": {
-        # "System": True,
-        "Igniter": True,
-        "Servos": True,
-        "Auto Ignition": True,
-    },
+    "boards": {name: False for name in config["boards"]},
+    "important_status": dict(config["system_flags"]),
     "servos": [
-        {"name": "Servo 1", "status": "CLOSED"},
-        {"name": "Servo 2", "status": "CLOSED"},
-        {"name": "Servo 3", "status": "CLOSED"},
+        {"name": name, "status": "CLOSED"} for name in config["servos"]
     ],
     "igniter": {
         "status": "OFF"
@@ -160,13 +184,13 @@ async def get_status(request: Request):
 async def connect_xbee():
     state["xbee"]["connected"] = True
     state["xbee"]["status"] = "Connected"
-    state["xbee"]["port"] = "/dev/mockUSB0"
+    state["xbee"]["port"] = MOCK_XBEE_PORT
 
-    state["boards"]["Igniter Board"] = True
-    state["boards"]["Servo Board"] = True
+    for board in state["boards"]:
+        state["boards"][board] = True
 
     log_event("Mock autodetect start")
-    log_event("MQTT connected on /dev/mockUSB0")
+    log_event(f"MQTT connected on {MOCK_XBEE_PORT}")
     return {"ok": True}
 
 
@@ -176,8 +200,8 @@ async def disconnect_xbee():
     state["xbee"]["status"] = "Disconnected"
     state["xbee"]["port"] = ""
 
-    state["boards"]["Igniter Board"] = False
-    state["boards"]["Servo Board"] = False
+    for board in state["boards"]:
+        state["boards"][board] = False
 
     log_event("Mock disconnect start")
     log_event("User mock disconnect")
@@ -191,7 +215,7 @@ async def arm_status(request: Request, action: StatusAction):
 
     command = ARM_COMMANDS.get(action.name)
     if command is not None:
-        await send_control_command(request, ControlCommand(command=command))
+        await run_command(request, command)
 
     state["important_status"][action.name] = True
     log_event(f"{action.name} ARMED")
@@ -206,7 +230,7 @@ async def abort_status(request: Request, action: StatusAction):
 
     command = ABORT_COMMANDS.get(action.name)
     if command is not None:
-        await send_control_command(request, ControlCommand(command=command))
+        await run_command(request, command)
 
     state["important_status"][action.name] = False
     log_event(f"{action.name} ABORTED")
@@ -220,8 +244,8 @@ async def open_servo(request: Request, action: ServoAction):
     if servo["status"] == "OPEN":
         return {"ok": True}
 
-    command = ARM_COMMANDS.get(servo["name"])
-    await send_control_command(request, ControlCommand(command=command))
+    command = ARM_COMMANDS[servo["name"]]
+    await run_command(request, command)
 
     servo["status"] = "OPEN"
     log_event(f"Servo {action.row + 1} OPEN")
@@ -234,8 +258,8 @@ async def close_servo(request: Request, action: ServoAction):
     if servo["status"] == "CLOSED":
         return {"ok": True}
 
-    command = ABORT_COMMANDS.get(servo["name"])
-    await send_control_command(request, ControlCommand(command=command))
+    command = ABORT_COMMANDS[servo["name"]]
+    await run_command(request, command)
 
     servo["status"] = "CLOSED"
     log_event(f"Servo {action.row + 1} CLOSED")
@@ -246,8 +270,8 @@ async def close_servo(request: Request, action: ServoAction):
 async def fire_igniter(request: Request):
 
     if state["igniter"]["status"] != "ON":
-        command = ARM_COMMANDS.get("Igniter_Actual")
-        await send_control_command(request, ControlCommand(command=command))
+        command = ARM_COMMANDS["Igniter_Actual"]
+        await run_command(request, command)
 
     state["igniter"]["status"] = "ON"
     log_event("Igniter FIRED")
@@ -258,8 +282,8 @@ async def fire_igniter(request: Request):
 async def shutoff_igniter(request: Request):
 
     if state["igniter"]["status"] != "OFF":
-        command = ABORT_COMMANDS.get("Igniter_Actual")
-        await send_control_command(request, ControlCommand(command=command))
+        command = ABORT_COMMANDS["Igniter_Actual"]
+        await run_command(request, command)
 
     state["igniter"]["status"] = "OFF"
     log_event("Igniter SHUT OFF")
@@ -269,15 +293,9 @@ async def shutoff_igniter(request: Request):
 @router.post("/api/ping")
 async def ping_board(request: Request):
     for _ in range(LED_BLINK_COUNT):
-        await send_control_command(
-            request,
-            ControlCommand(command=ARM_COMMANDS["LED"]),
-        )
+        await run_command(request, ARM_COMMANDS["LED"])
         await asyncio.sleep(LED_BLINK_DELAY_SECONDS)
-        await send_control_command(
-            request,
-            ControlCommand(command=ABORT_COMMANDS["LED"]),
-        )
+        await run_command(request, ABORT_COMMANDS["LED"])
         await asyncio.sleep(LED_BLINK_DELAY_SECONDS)
 
     log_event("Ping blink sent to board")
