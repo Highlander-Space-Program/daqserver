@@ -1,3 +1,4 @@
+
 import asyncio
 import os
 from datetime import timezone
@@ -19,7 +20,9 @@ class GrafanaLivePublisher:
         self.url = (
             url or os.getenv("GRAFANA_URL", "ws://localhost:3000")
         ).rstrip("/")
+
         self.token = token or os.getenv("GRAFANA_TOKEN")
+
         self.stream_id = stream_id or os.getenv(
             "GRAFANA_STREAM_ID", "daq"
         )
@@ -49,6 +52,7 @@ class GrafanaLivePublisher:
             ping_interval=20,
             ping_timeout=20,
         )
+
         print(f"[GrafanaLive] Connected: {self.endpoint}")
 
     @staticmethod
@@ -70,48 +74,49 @@ class GrafanaLivePublisher:
             .replace("=", "\\=")
         )
 
-
     @classmethod
-    def serialize_output(cls, output: SensorOutput) -> str:
-        """Convert SensorOutput into per-AIN Influx line protocol."""
+    def serialize_output(
+        cls,
+        output: SensorOutput,
+        config_ain: str,
+    ) -> str:
+        """
+        Convert the existing SensorOutput into Grafana Live metrics.
 
+        config_ain determines the Grafana Live channel:
+        stream/daq/{config_ain.lower()}
+        """
+
+        if not config_ain:
+            raise ValueError("config_ain cannot be empty")
+
+        # Extract existing sensor metadata.
         source = output.source.to_dict()
 
-        # The actual AIN identifier is stored in cb37_pin.
-        ain = source.get("cb37_pin")
-
-        if ain is None:
-            raise ValueError(
-                f"Sensor output is missing cb37_pin: {source}"
-            ) 
-
-        # Each AIN gets its own measurement and Live channel.
+        # Use the configured AIN as the measurement name.
         measurement = cls._escape_measurement(
-            str(ain).lower()
-        ) 
+            config_ain.lower()
+        )
 
+        # Convert SensorOutput metadata into tags.
         tags = {
-            "ain": str(ain).upper(),
-            "sensor_type": str(output.data_type.value).lower(),
+            "ain": config_ain.upper(),
+            "sensor_type": output.data_type.value.lower(),
         }
 
-        # Preserve existing sensor metadata.
+        # Preserve physical input metadata.
         for key, value in source.items():
             if value is None:
                 continue
 
-            normalized_key = key.lower()
-
-            if normalized_key == "cb37_pin":
-                continue
-
-            tags[normalized_key] = str(value)
+            tags[key.lower()] = str(value)
 
         tag_string = ",".join(
             f"{cls._escape_tag(key)}={cls._escape_tag(value)}"
             for key, value in sorted(tags.items())
         )
 
+        # Convert each TimeBasedData sample into a metric.
         lines = []
 
         for sample in output.data:
@@ -128,14 +133,19 @@ class GrafanaLivePublisher:
             lines.append(
                 f"{measurement},{tag_string} "
                 f"value={float(sample.value)} {timestamp_ns}"
-            ) 
+            )
 
         return "\n".join(lines)
 
+    async def publish_output(
+        self,
+        output: SensorOutput,
+        config_ain: str,
+    ):
+        """Publish a SensorOutput to its configured Grafana channel."""
 
-    async def publish_output(self, output: SensorOutput):
-        """Publish a SensorOutput directly, without Datapool."""
-        payload = self.serialize_output(output)
+        payload = self.serialize_output(output, config_ain)
+
         if not payload:
             return
 
@@ -146,7 +156,7 @@ class GrafanaLivePublisher:
                         await self.connect()
 
                     await self.websocket.send(payload)
-                    # print(f"[GrafanaLive] Sent {len(output.data)} sample(s)")
+
                     return
 
                 except (ConnectionClosed, OSError) as exc:
@@ -157,6 +167,7 @@ class GrafanaLivePublisher:
                             await self.websocket.close()
                         except Exception:
                             pass
+
                     self.websocket = None
 
                     if attempt == 1:
@@ -164,9 +175,17 @@ class GrafanaLivePublisher:
 
                     await asyncio.sleep(0.5)
 
-    async def publish_sensor_data(self, sensor_data: SensorData):
+    async def publish_sensor_data(
+        self,
+        sensor_data: SensorData,
+        config_ain: str,
+    ):
         """Accept the existing LabJackData wrapper."""
-        await self.publish_output(sensor_data.get_data())
+
+        await self.publish_output(
+            sensor_data.get_data(),
+            config_ain,
+        )
 
     async def close(self):
         async with self._send_lock:

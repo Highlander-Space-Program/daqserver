@@ -365,7 +365,11 @@ class Labjack(ABC):
         # Main publishing callback. This is independent of the UI.
         if self.on_sensor_data is not None:
             try:
-                self.on_sensor_data(output)
+                for ain, item in PIN_MAPPING.items():
+                    if item["mux"] == output.source.mux_number and item["cb37_pin"] == output.source.cb37_pin:
+                        config_ain = ain
+                print(output)
+                self.on_sensor_data(output, config_ain)
             except Exception:
                 streaming_logger.exception(
                     "Failed to publish sensor output."

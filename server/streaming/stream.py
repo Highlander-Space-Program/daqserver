@@ -34,7 +34,7 @@ def init_streaming(
     if influx_publisher is not None:
         influx_publisher.start()
 
-    def publish_sensor_output(output):
+    def publish_sensor_output(output, config_ain):
         # Influx writes independently of Grafana Live.
         if influx_publisher is not None:
             try:
@@ -48,7 +48,7 @@ def init_streaming(
         if grafana_publisher is not None:
             try:
                 future = asyncio.run_coroutine_threadsafe(
-                    grafana_publisher.publish_output(output),
+                    grafana_publisher.publish_output(output, config_ain),
                     loop,
                 )
                 future.add_done_callback(
@@ -62,6 +62,7 @@ def init_streaming(
                     "Could not schedule Grafana Live publishing."
                 )
 
+    print("fuck ", backend_name)
     if backend_name == "virtual":
         from server.testing.virtual_labjack import VirtualLabJack
 
